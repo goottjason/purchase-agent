@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+  <title>마스터 데이터 관리</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"/>
+</head>
+<body>
+<div class="container py-4">
+  <h1>마스터 데이터 관리</h1>
+  <div class="row g-4">
+
+    <!-- 공급처 관리 -->
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header">공급처 관리</div>
+        <div class="card-body">
+          <form th:action="@{${editType == 'supplier'} ? '/admin/master/supplier/update' : '/admin/master/supplier'}"
+                th:object="${supplierDto}" method="post">
+            <div class="mb-2">
+              <label>공급처 코드</label>
+              <input th:field="*{supplierCode}" class="form-control"
+                     th:readonly="${editType == 'supplier'}" required/>
+            </div>
+            <div class="mb-2">
+              <label>공급처명</label>
+              <input th:field="*{supplierName}" class="form-control" required/>
+            </div>
+            <div class="mb-2">
+              <label>통화</label>
+              <select th:field="*{currencyCode}" class="form-select" required>
+                <option th:each="cur : ${currencies}" th:value="${cur.currencyCode}" th:text="${cur.currencyCode}"/>
+              </select>
+            </div>
+            <button class="btn btn-primary" type="submit" th:text="${editType == 'supplier'} ? '수정' : '등록'"></button>
+            <a th:if="${editType == 'supplier'}" href="/admin/master" class="btn btn-secondary ms-2">취소</a>
+          </form>
+        </div>
+        <div class="mt-3">
+          <table class="table table-bordered">
+            <thead>
+            <tr><th>코드</th><th>명</th><th>통화</th><th>액션</th></tr>
+            </thead>
+            <tbody>
+            <tr th:each="s : ${suppliers}">
+              <td th:text="${s.supplierCode}"></td>
+              <td th:text="${s.supplierName}"></td>
+              <td th:text="${s.currency.currencyCode}"></td>
+              <td>
+                <a th:href="@{/admin/master/supplier/edit/{code}(code=${s.supplierCode})}" class="btn btn-sm btn-outline-primary">수정</a>
+                <form th:action="@{/admin/master/supplier/delete/{code}(code=${s.supplierCode})}" method="post"
+                      class="d-inline" onsubmit="return confirm('삭제하시겠습니까?');">
+                  <button type="submit" class="btn btn-sm btn-outline-danger">삭제</button>
+                </form>
+              </td>
+            </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- 통화 관리 -->
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header">통화 관리</div>
+        <div class="card-body">
+          <form th:action="@{${editType == 'currency'} ? '/admin/master/currency/update' : '/admin/master/currency'}"
+                th:object="${currencyDto}" method="post">
+            <div class="mb-2">
+              <label>통화코드</label>
+              <input th:field="*{currencyCode}" class="form-control" th:readonly="${editType == 'currency'}" required/>
+            </div>
+            <div class="mb-2">
+              <label>환율</label>
+              <input th:field="*{exchangeRate}" class="form-control" type="number" step="0.01" min="0" required/>
+            </div>
+            <button class="btn btn-primary" type="submit" th:text="${editType == 'currency'} ? '수정' : '등록'"></button>
+            <a th:if="${editType == 'currency'}" href="/admin/master" class="btn btn-secondary ms-2">취소</a>
+          </form>
+        </div>
+        <div class="mt-3">
+          <table class="table table-bordered">
+            <thead><tr><th>통화코드</th><th>환율</th><th>액션</th></tr></thead>
+            <tbody>
+            <tr th:each="cur : ${currencies}">
+              <td th:text="${cur.currencyCode}"></td>
+              <td th:text="${cur.exchangeRate}"></td>
+              <td>
+                <a th:href="@{/admin/master/currency/edit/{code}(code=${cur.currencyCode})}" class="btn btn-sm btn-outline-primary">수정</a>
+                <form th:action="@{/admin/master/currency/delete/{code}(code=${cur.currencyCode})}" method="post" class="d-inline"
+                      onsubmit="return confirm('삭제하시겠습니까?');">
+                  <button type="submit" class="btn btn-sm btn-outline-danger">삭제</button>
+                </form>
+              </td>
+            </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- 카테고리 관리 -->
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header">카테고리 관리</div>
+        <div class="card-body">
+          <form th:action="@{${editType == 'category'} ? '/admin/master/category/update' : '/admin/master/category'}"
+                th:object="${categoryDto}" method="post">
+            <!--<input type="hidden" th:field="*{categoryCode}"/>-->
+            <div class="mb-2">
+              <label>카테고리코드</label>
+              <input th:field="*{categoryCode}" class="form-control" required/>
+            </div>
+            <div class="mb-2">
+              <label>카테고리명</label>
+              <input th:field="*{categoryName}" class="form-control" required/>
+            </div>
+            <div class="mb-2">
+              <label>상위카테고리</label>
+              <select th:field="*{parentCategoryCode}" class="form-select">
+                <option value="">없음</option>
+                <option th:each="pc : ${parentCategories}" th:value="${pc.categoryCode}" th:text="${pc.categoryName}"></option>
+              </select>
+            </div>
+            <div class="mb-2">
+              <label>카테고리명</label>
+              <input th:field="*{categoryLink}" class="form-control" required/>
+            </div>
+            <button class="btn btn-primary" type="submit" th:text="${editType == 'category'} ? '수정' : '등록'"></button>
+            <a th:if="${editType == 'category'}" href="/admin/master" class="btn btn-secondary ms-2">취소</a>
+          </form>
+        </div>
+        <div class="mt-3">
+          <table class="table table-bordered">
+            <thead><tr><th>카테고리코드</th><th>카테고리명</th><th>상위 카테고리</th><th>카테고리링크</th><th>액션</th></tr></thead>
+            <tbody>
+            <tr th:each="cat : ${categories}">
+              <td th:text="${cat.categoryCode}"></td>
+              <td th:text="${cat.categoryName}"></td>
+              <td th:text="${cat.parentCategory != null ? cat.parentCategory.categoryName : '-'}"></td>
+              <td th:text="${cat.categoryLink}"></td>
+              <td>
+                <a th:href="@{/admin/master/category/edit/{code}(code=${cat.categoryCode})}" class="btn btn-sm btn-outline-primary">수정</a>
+                <form th:action="@{/admin/master/category/delete/{code}(code=${cat.categoryCode})}" method="post" class="d-inline"
+                      onsubmit="return confirm('삭제하시겠습니까?');">
+                  <button type="submit" class="btn btn-sm btn-outline-danger">삭제</button>
+                </form>
+              </td>
+            </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- 판매채널 관리 -->
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header">판매채널 관리</div>
+        <div class="card-body">
+          <form th:action="@{${editType == 'saleChannel'} ? '/admin/master/sale-channel/update' : '/admin/master/sale-channel'}"
+                th:object="${saleChannelDto}" method="post">
+<!--            <input type="hidden" th:field="*{channelCode}"/>-->
+            <div class="mb-2">
+              <label>채널코드</label>
+              <input th:field="*{channelCode}" class="form-control" required/>
+            </div>
+            <div class="mb-2">
+              <label>채널명</label>
+              <input th:field="*{channelName}" class="form-control" required/>
+            </div>
+            <div class="mb-2">
+              <label>수수료율</label>
+              <input th:field="*{feeRate}" class="form-control" type="number" step="0.0001" min="0" required/>
+            </div>
+            <button class="btn btn-primary" type="submit" th:text="${editType == 'saleChannel'} ? '수정' : '등록'"></button>
+            <a th:if="${editType == 'saleChannel'}" href="/admin/master" class="btn btn-secondary ms-2">취소</a>
+          </form>
+        </div>
+        <div class="mt-3">
+          <table class="table table-bordered">
+            <thead><tr>
+              <th>채널코드</th>
+              <th>채널명</th><th>수수료율</th><th>액션</th></tr></thead>
+            <tbody>
+            <tr th:each="sc : ${saleChannels}">
+              <td th:text="${sc.channelCode}"></td>
+              <td th:text="${sc.channelName}"></td>
+              <td th:text="${sc.feeRate}"></td>
+              <td>
+                <a th:href="@{/admin/master/sale-channel/edit/{code}(code=${sc.channelCode})}" class="btn btn-sm btn-outline-primary">수정</a>
+                <form th:action="@{/admin/master/sale-channel/delete/{code}(code=${sc.channelCode})}" method="post" class="d-inline"
+                      onsubmit="return confirm('삭제하시겠습니까?');">
+                  <button type="submit" class="btn btn-sm btn-outline-danger">삭제</button>
+                </form>
+              </td>
+            </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>

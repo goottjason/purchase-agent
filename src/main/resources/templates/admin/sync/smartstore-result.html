@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <title>스마트스토어 상품 동기화 결과</title>
+  <style>
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border: 1px solid #ccc; padding: 5px; }
+    th { background-color: #eee; }
+    img { max-width: 80px; }
+  </style>
+</head>
+<body>
+<h1>스마트스토어 상품 동기화 결과</h1>
+<table>
+  <thead>
+  <tr>
+    <th>OriginProductNo</th>
+    <th>상품명</th>
+    <th>관리코드</th>
+    <th>채널상품번호</th>
+    <th>상태</th>
+    <th>카테고리</th>
+    <th>가격</th>
+    <th>재고</th>
+    <th>대표이미지</th>
+    <th>등록일시</th>
+    <th>수정일시</th>
+  </tr>
+  </thead>
+  <tbody>
+  <!-- 데이터가 없을 때 안내 -->
+  <tr th:if="${smartstoreProductDtos == null or #lists.size(smartstoreProductDtos) == 0}">
+    <td colspan="11">데이터가 없습니다.</td>
+  </tr>
+
+  <!-- 데이터가 있을 때 -->
+  <tr th:each="product : ${smartstoreProductDtos}">
+    <!-- 채널상품이 있을 때 (처음것만 출력) -->
+    <td th:text="${product.originProductNo}"></td>
+    <th:block th:if="${product.channelProducts != null and #lists.size(product.channelProducts) > 0}">
+      <td th:text="${product.channelProducts[0].name}"></td>
+      <td th:text="${product.channelProducts[0].sellerManagementCode}"></td>
+      <td th:text="${product.channelProducts[0].channelProductNo}"></td>
+      <td th:text="${product.channelProducts[0].statusType}"></td>
+      <td th:text="${product.channelProducts[0].wholeCategoryName}"></td>
+      <td th:text="${product.channelProducts[0].salePrice}"></td>
+      <td th:text="${product.channelProducts[0].stockQuantity}"></td>
+      <td>
+        <img th:if="${product.channelProducts[0].representativeImage != null}" th:src="${product.channelProducts[0].representativeImage.url}" th:alt="${product.channelProducts[0].name}" />
+      </td>
+      <td th:text="${product.channelProducts[0].regDate}"></td>
+      <td th:text="${product.channelProducts[0].modifiedDate}"></td>
+    </th:block>
+    <!-- 채널상품이 없을 때 -->
+    <th:block th:if="${product.channelProducts == null or #lists.size(product.channelProducts) == 0}">
+      <td colspan="10">채널상품 없음</td>
+    </th:block>
+  </tr>
+  </tbody>
+
+
+
+</table>
+</body>
+</html>

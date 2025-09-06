@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Perplexity API 테스트</title>
+</head>
+<body>
+<h1>Perplexity API 테스트</h1>
+
+<div>
+  <textarea id="messageInput" rows="4" cols="50" placeholder="질문을 입력하세요"></textarea><br><br>
+  <button onclick="sendQuery()">질문하기</button>
+</div>
+
+<div>
+  <h3>응답:</h3>
+  <div id="response" style="border: 1px solid #ccc; padding: 10px; min-height: 100px; white-space: pre-wrap;"></div>
+</div>
+
+<script>
+  async function sendQuery() {
+    const message = document.getElementById('messageInput').value;
+    const responseDiv = document.getElementById('response');
+
+    if (!message.trim()) {
+      alert('메시지를 입력하세요!');
+      return;
+    }
+
+    responseDiv.textContent = '응답을 기다리고 있습니다...';
+
+    try {
+      const response = await fetch('/api/perplexity/query', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ message: message })
+      });
+
+      const result = await response.text();
+      responseDiv.textContent = result;
+    } catch (error) {
+      responseDiv.textContent = '오류가 발생했습니다: ' + error.message;
+    }
+  }
+</script>
+</body>
+</html>
