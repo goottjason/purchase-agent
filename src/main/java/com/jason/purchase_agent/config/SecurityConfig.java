@@ -32,7 +32,7 @@ public class SecurityConfig {
       .formLogin(form -> form
         .loginPage("/login")
         .loginProcessingUrl("/login") // POST 요청 처리 URL
-        .defaultSuccessUrl("/admin/products", true)
+        .defaultSuccessUrl("/", true)
         .failureUrl("/login?error=true")
         .permitAll()
       )

@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layouts/admin-layout}">
+
+<head>
+  <title>404</title>
+</head>
+
+<div layout:fragment="content">
+  <!-- 페이지 콘텐츠 -->
+  <!-- Begin Page Content -->
+  <div class="container-fluid">
+
+    <!-- 404 Error Text -->
+    <div class="text-center">
+      <div class="error mx-auto" data-text="404">404</div>
+      <p class="lead text-gray-800 mb-5">Page Not Found</p>
+      <p class="text-gray-500 mb-0">It looks like you found a glitch in the matrix...</p>
+      <a th:href="@{/}">&larr; Back to Dashboard</a>
+    </div>
+
+  </div>
+  <!-- /.container-fluid -->
+</div>
+
+<th:block layout:fragment="scripts">
+
+</th:block>
+
+</html>

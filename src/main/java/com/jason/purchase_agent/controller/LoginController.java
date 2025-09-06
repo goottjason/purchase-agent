@@ -7,7 +7,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 
 @Controller
 public class LoginController {
-  @GetMapping("/login")
+  /*@GetMapping("/login")
   public String loginPage(@RequestParam(value = "error", required = false) String error,
                           @RequestParam(value = "logout", required = false) String logout,
                           Model model) {
@@ -21,10 +21,10 @@ public class LoginController {
     }
 
     return "login"; // login.html 템플릿 반환
-  }
+  }*/
 
-  @GetMapping("/")
+  /*@GetMapping("/")
   public String home() {
     return "redirect:/login";
-  }
+  }*/
 }
