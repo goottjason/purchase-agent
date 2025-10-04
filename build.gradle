@@ -1,7 +1,7 @@
 plugins {
-	id 'java'
-	id 'org.springframework.boot' version '3.5.5'
-	id 'io.spring.dependency-management' version '1.1.7'
+    id 'java'
+    id 'org.springframework.boot' version '3.5.5'
+    id 'io.spring.dependency-management' version '1.1.7'
 }
 
 group = 'com.jason'
@@ -9,56 +9,80 @@ version = '0.0.1-SNAPSHOT'
 description = 'Demo project for Spring Boot'
 
 java {
-	toolchain {
-		languageVersion = JavaLanguageVersion.of(21)
-	}
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
 }
 
 configurations {
-	compileOnly {
-		extendsFrom annotationProcessor
-	}
+    compileOnly {
+        extendsFrom annotationProcessor
+    }
 }
 
 repositories {
-	mavenCentral()
+    mavenCentral()
 }
 
 dependencies {
-	implementation 'org.springframework.boot:spring-boot-starter-web'
+    // === Spring Boot Starters ===
+    implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-webflux'
-	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
-	implementation 'org.mybatis.spring.boot:mybatis-spring-boot-starter:3.0.5'
-	implementation 'org.springframework.boot:spring-boot-starter-security'
-	implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
-    implementation 'nz.net.ultraq.thymeleaf:thymeleaf-layout-dialect'
-	implementation 'org.thymeleaf.extras:thymeleaf-extras-springsecurity6'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
-    compileOnly 'org.projectlombok:lombok'
-	developmentOnly 'org.springframework.boot:spring-boot-devtools'
-	runtimeOnly 'org.mariadb.jdbc:mariadb-java-client'
-	annotationProcessor 'org.projectlombok:lombok'
+    implementation 'org.springframework.boot:spring-boot-starter-json'
 
-    // Excel 처리
+    // === Thymeleaf etc ===
+    implementation 'nz.net.ultraq.thymeleaf:thymeleaf-layout-dialect'
+    implementation 'org.thymeleaf.extras:thymeleaf-extras-springsecurity6'
+
+    // === DB/ORM ===
+    implementation 'org.mybatis.spring.boot:mybatis-spring-boot-starter:3.0.5'
+    runtimeOnly 'org.mariadb.jdbc:mariadb-java-client'
+
+    // === Dev tools, Lombok ===
+    developmentOnly 'org.springframework.boot:spring-boot-devtools'
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+
+    // === 파일/Excel 처리 ===
     implementation 'org.apache.poi:poi:5.2.4'
     implementation 'org.apache.poi:poi-ooxml:5.2.4'
     implementation 'org.apache.poi:poi-scratchpad:5.2.4'
 
-    implementation 'org.json:json:20231013' // 최신버전 확인 필요
-    implementation 'org.mindrot:jbcrypt:0.4'
-    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
-
+    // === HTTP/JSON 처리 등 3rd party ===
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0' // 최신만 남기기
+    implementation 'com.google.code.gson:gson:2.10.1'
+    implementation 'net.datafaker:datafaker:2.1.0'
     implementation 'org.apache.httpcomponents:httpclient:4.5.14'
-
+    implementation 'org.apache.commons:commons-lang3:3.12.0'
+    implementation 'org.json:json:20231013'
+    implementation 'org.mindrot:jbcrypt:0.4'
     implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-xml'
+    implementation 'org.jsoup:jsoup:1.17.2'
+    implementation 'org.seleniumhq.selenium:selenium-java:4.20.0'
+
+    implementation 'org.springframework.boot:spring-boot-starter-amqp'
+
+    implementation 'net.coobird:thumbnailator:0.4.20'
 
 
+    // Playwright for Java (최신 버전은 공식 repo에서 확인, 1.44.0 기준)
+    implementation 'com.microsoft.playwright:playwright:1.44.0'
+
+
+    // === OAuth2 클라이언트 ===
+    implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
+
+    // === 테스트 ===
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
-	testImplementation 'org.mybatis.spring.boot:mybatis-spring-boot-starter-test:3.0.5'
-	testImplementation 'org.springframework.security:spring-security-test'
-	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testImplementation 'org.mybatis.spring.boot:mybatis-spring-boot-starter-test:3.0.5'
+    testImplementation 'org.springframework.security:spring-security-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
 tasks.named('test') {
-	useJUnitPlatform()
+    useJUnitPlatform()
 }

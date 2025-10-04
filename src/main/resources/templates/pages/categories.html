@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layouts/admin-layout}">
+
+<head>
+  <title>카테고리 관리</title>
+</head>
+
+<div layout:fragment="content">
+  <style>
+    .tree-toggle {
+      cursor: pointer;
+      font-size: 1.1em;
+      color: #007bff;
+    }
+    .tree-indent {
+      display: inline-block;
+      width: calc(var(--level, 0) * 18px);
+    }
+    .caret-down:before { content: "▼"; margin-right:4px; }
+    .caret-right:before { content: "▶"; margin-right:4px;}
+  </style>
+  <!-- Begin Page Content -->
+  <div class="container-fluid">
+
+    <!-- Page Heading -->
+    <div class="d-sm-flex align-items-center justify-content-between mb-4" style="max-width: 1200px; margin: 0 auto;">
+      <h1 class="h3 mb-0 text-gray-800">카테고리 관리</h1>
+    </div>
+
+    <!-- 카테고리 등록 -->
+    <div class="card shadow mb-4" style="max-width: 1200px; margin: 0 auto;">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-success">카테고리 등록</h6>
+      </div>
+      <div class="card-body">
+        <form id="category-simple-form" class="form-row align-items-end">
+          <div class="col-md-6">
+            <label>계층명</label>
+            <input type="text" name="categoryPath" class="form-control" placeholder="예시: 보충제 > 허브" required>
+          </div>
+          <div class="col-md-4">
+            <label>링크</label>
+            <input type="text" name="link" class="form-control" placeholder="예시 : https://kr.iherb.com/c/herbs" required>
+          </div>
+          <div class="col-md-2">
+            <button class="btn btn-success btn-block" type="submit">등록</button>
+          </div>
+        </form>
+
+        <!-- 엑셀 업로드 -->
+        <form id="excel-upload-form" class="mt-4" enctype="multipart/form-data">
+          <label>엑셀 등록 (형식: <span class="font-weight-bold">보충제 &gt; 허브, https://kr.iherb.com/c/herbs</span>)</label>
+          <div class="form-row align-items-center">
+            <div class="col-auto">
+              <!-- 커스텀 파일 버튼 -->
+              <input type="file" name="excelFile" accept=".xls,.xlsx" id="excelFileInput" style="display:none" required>
+              <label for="excelFileInput" class="btn btn-outline-primary mb-0">파일 선택</label>
+              <span id="excelFileName" class="ml-2 text-muted">선택된 파일 없음</span>
+            </div>
+            <div class="col-auto">
+              <button class="btn btn-primary" type="submit">엑셀 업로드</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- 카테고리 테이블 -->
+    <div class="card shadow mb-4" style="max-width: 1200px; margin: 0 auto;">
+      <div class="card-header py-3 d-flex justify-content-between align-items-center">
+        <h6 class="m-0 font-weight-bold text-success">카테고리 테이블 조회</h6>
+        <form class="form-inline" id="search-form">
+          <input class="form-control mr-2" type="text" id="search-input" placeholder="카테고리명 검색">
+          <button class="btn btn-success" type="submit">검색</button>
+          <button class="btn btn-secondary ml-2" id="reset-button" type="button">초기화</button>
+        </form>
+      </div>
+      <div class="card-body">
+        <div id="loading-spinner" class="text-center" style="display: none;">
+          <div class="spinner-border text-success" role="status"><span class="sr-only">Loading...</span></div>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-bordered table-hover">
+            <thead>
+            <tr class="text-center">
+              <th style="width:35%;">카테고리명</th>
+              <th style="width:30%;">링크</th>
+              <th style="width:25%;">관리</th>
+            </tr>
+            </thead>
+            <tbody id="category-tree-table"></tbody>
+          </table>
+        </div>
+        <div id="no-data-message" class="text-center p-4 text-muted" style="display:none;">조회된 카테고리가 없습니다.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 수정 모달 -->
+  <div class="modal fade" id="categoryEditModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <form id="category-edit-form">
+          <div class="modal-header">
+            <h5 class="modal-title">카테고리 수정</h5>
+            <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
+          </div>
+          <div class="modal-body">
+            <input type="hidden" id="edit-category-id">
+            <div class="form-group">
+              <label>카테고리명</label>
+              <input type="text" class="form-control" id="edit-category-name" required>
+            </div>
+            <div class="form-group">
+              <label>링크</label>
+              <input type="text" class="form-control" id="edit-link" required>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-dismiss="modal">취소</button>
+            <button type="submit" class="btn btn-success">수정 완료</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+</div><!--/.container-fluid-->
+
+<th:block layout:fragment="scripts">
+  <script src="/vendor/datatables/jquery.dataTables.min.js"></script>
+  <script src="/vendor/datatables/dataTables.bootstrap4.min.js"></script>
+  <script src="/js/pages/categories.js"></script>
+</th:block>
+
+</html>

@@ -10,7 +10,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class PerplexityMessage {
-  private String role;
-  private String content;
+    private String role;
+    private String content;
 
 }

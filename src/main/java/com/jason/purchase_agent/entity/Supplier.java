@@ -11,16 +11,16 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class Supplier {
-  @Id
-  @Column(name = "supplier_code", length = 10)
-  private String supplierCode;
+    @Id
+    @Column(name = "supplier_code", length = 10)
+    private String supplierCode;
 
-  @Column(name = "supplier_name", length = 255)
-  private String supplierName;
+    @Column(name = "supplier_name", length = 255)
+    private String supplierName;
 
-  @ManyToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "currency_code")
-  private Currency currency;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "currency_code")
+    private Currency currency;
 
 
 }

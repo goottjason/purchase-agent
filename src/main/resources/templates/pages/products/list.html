@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layouts/admin-layout}">
+<head>
+  <title>Title</title>
+</head>
+<div layout:fragment="content">
+  <style>
+    .editable-cell { cursor: pointer; position: relative; }
+    .editable-cell:hover { background-color: #f8f9fa; }
+    .editing-input { width: 100%; border: 2px solid #4e73df; padding: 2px 5px; }
+    .modified-cell { background-color: #fff3cd !important; border: 1px solid #ffeaa7; }
+    .save-indicator { display: none; position: fixed; top: 20px; right: 20px; z-index: 1000; }
+    /* 필터 스타일 */
+    .filter-header { position: relative; }
+    .filter-dropdown-btn { background: none; border: none; padding: 2px 5px; margin-left: 5px; font-size: 0.8rem; color: #6c757d; }
+    .filter-dropdown-btn.filtered { color: #4e73df; background-color: #e3f2fd; }
+    .dropdown-menu { min-width: 180px; }
+    .table-responsive { font-size: 0.875rem; }
+    .table th, .table td { padding: 0.5rem; vertical-align: middle; }
+    .product-link { color: #4e73df; text-decoration: none; }
+    .product-link:hover { color: #2e59d9; text-decoration: underline; }
+  </style>
+
+  <!-- Begin Page Content -->
+  <div class="container-fluid">
+
+    <!-- Page Heading & Save Button -->
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+      <h1 class="h3 mb-0 text-gray-800">상품 목록</h1>
+    </div>
+
+    <!-- 검색 및 페이지 크기 설정 -->
+    <div class="card shadow mb-4">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">검색 및 필터</h6>
+      </div>
+      <div class="card-body">
+        <form id="searchForm" method="get" action="/products/list">
+          <div class="row">
+            <div class="col-md-3">
+              <div class="form-group">
+                <label for="searchKeyword">검색</label>
+                <input type="text" class="form-control" id="searchKeyword" name="searchKeyword"
+                       th:value="${searchKeyword}"
+                       placeholder="상품코드, 상품명, 한국명, 영어명, 브랜드명으로 검색">
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="form-group">
+                <label for="pageSize">페이지당 표시</label>
+                <select class="form-control" id="pageSize" name="pageSize">
+                  <option value="50" th:selected="${pageSize == 50}">50개</option>
+                  <option value="100" th:selected="${pageSize == 100}">100개</option>
+                  <option value="250" th:selected="${pageSize == 250}">250개</option>
+                  <option value="500" th:selected="${pageSize == 500}">500개</option>
+                  <option value="1000" th:selected="${pageSize == 1000}">1000개</option>
+                </select>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="form-group">
+                <label for="sortOrder">정렬순</label>
+                <select class="form-control" id="sortOrder" name="sortOrder">
+                  <option value="createdAt,desc" th:selected="${sortOrder == 'createdAt,desc'}">최신순(생성일순)</option>
+                  <option value="updatedAt,desc" th:selected="${sortOrder == 'updatedAt,desc'}">업데이트순</option>
+                  <option value="code,asc" th:selected="${sortOrder == 'code,asc'}">코드순↑</option>
+                  <option value="code,desc" th:selected="${sortOrder == 'code,desc'}">코드순↓</option>
+                  <option value="title,asc" th:selected="${sortOrder == 'title,asc'}">제목순↑</option>
+                  <option value="title,desc" th:selected="${sortOrder == 'title,desc'}">제목순↓</option>
+                </select>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="form-group">
+                <label>&nbsp;</label>
+                <div>
+                  <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-search"></i> 검색
+                  </button>
+                  <button type="button" class="btn btn-secondary" onclick="resetAllFilters()">
+                    <i class="fas fa-undo"></i> 전체 초기화
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 숨겨진 필터 필드들 -->
+          <input type="hidden" name="pageNumber" value="0">
+          <div id="hiddenFilters">
+            <!-- 공급업체 필터 -->
+            <th:block th:if="${selectedSuppliers != null}">
+              <input th:each="supplier : ${selectedSuppliers}"
+                     type="hidden" name="supplierCodes" th:value="${supplier}">
+            </th:block>
+
+            <!-- 채널 null 필터 -->
+            <input type="hidden" name="filterNullVendorItemId" th:value="${filterNullVendorItemId}">
+            <input type="hidden" name="filterNullSellerProductId" th:value="${filterNullSellerProductId}">
+            <input type="hidden" name="filterNullSmartstoreId" th:value="${filterNullSmartstoreId}">
+            <input type="hidden" name="filterNullElevenstId" th:value="${filterNullElevenstId}">
+          </div>
+        </form>
+
+        <!-- 활성 필터 표시 -->
+        <div id="activeFilters" class="active-filters" style="display: none;">
+          <strong>적용된 필터:</strong>
+          <div id="filterTags"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 상품 목록 테이블 -->
+    <div class="card shadow mb-4">
+      <div class="card-header py-3">
+        <div class="d-flex flex-wrap align-items-end justify-content-between">
+          <div>
+            <h6 class="m-0 font-weight-bold text-primary mb-2">
+              상품 목록
+              <span class="text-muted">
+          (총 <span th:text="${totalElements}">0</span>개,
+          <span th:text="${currentPage + 1}">1</span>/<span th:text="${totalPages}">1</span> 페이지)
+        </span>
+            </h6>
+            <div id="batch-update-controls" class="d-flex flex-row flex-wrap align-items-end">
+              <div class="mr-3">
+                <label class="small mb-1 font-weight-bold text-secondary" for="margin-rate">마진율</label>
+                <div class="input-group input-group-sm">
+                  <input class="form-control" type="number" id="margin-rate" value="25" min="0" max="100" style="width:70px;">
+                  <div class="input-group-append">
+                    <span class="input-group-text">%</span>
+                  </div>
+                </div>
+              </div>
+              <div class="mr-3">
+                <label class="small mb-1 font-weight-bold text-secondary" for="coupon-rate">쿠폰할인율</label>
+                <div class="input-group input-group-sm">
+                  <input class="form-control" type="number" id="coupon-rate" value="0" min="0" max="100" style="width:70px;">
+                  <div class="input-group-append">
+                    <span class="input-group-text">%</span>
+                  </div>
+                </div>
+              </div>
+              <div class="mr-3">
+                <label class="small mb-1 font-weight-bold text-secondary" for="min-margin-price">최소마진</label>
+                <div class="input-group input-group-sm">
+                  <input class="form-control" type="number" id="min-margin-price" value="5000" min="0" style="width:100px;">
+                  <div class="input-group-append">
+                    <span class="input-group-text">원</span>
+                  </div>
+                </div>
+              </div>
+              <span class="ml-2 text-primary font-weight-bold align-self-center">
+          선택한 <b id="selectedCount">0</b>개 상품
+        </span>
+              <button id="batch-update-btn" class="btn btn-warning btn-sm ml-3 align-self-center" disabled>
+                가격/재고 업데이트
+              </button>
+            </div>
+          </div>
+          <div>
+            <button id="saveBtn" class="btn btn-success btn-sm" style="display: none;">
+              <i class="fas fa-save"></i> 변경사항 저장
+            </button>
+          </div>
+        </div> <!-- End of d-flex -->
+      </div> <!-- End of card-header -->
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="table table-bordered" width="100%" cellspacing="0">
+            <thead>
+            <tr>
+              <th style="width: 40px;">
+                <input type="checkbox" id="selectAll" title="전체 선택">
+              </th>
+
+              <!-- 공급업체 컬럼 (필터 가능) -->
+              <th style="width: 100px;" class="filter-header">
+                공급업체
+                <button class="filter-dropdown-btn"
+                        data-filter="supplier"
+                        data-toggle="dropdown">
+                  <i class="fas fa-filter"></i>
+                </button>
+                <div class="dropdown-menu filter-dropdown">
+                  <div class="filter-search">
+                    <input type="text" class="form-control form-control-sm"
+                           placeholder="공급업체 검색..."
+                           onkeyup="filterSupplierOptions(this.value)">
+                  </div>
+                  <div class="filter-options" id="supplierFilterOptions">
+                    <div class="filter-option" data-value="all">
+                      <input type="checkbox" id="supplier-all" checked>
+                      <label for="supplier-all" style="margin: 0; padding-left: 5px;">전체 선택</label>
+                    </div>
+                    <hr style="margin: 5px 0;">
+                    <th:block th:each="supplier : ${suppliers}">
+                      <div class="filter-option" th:data-value="${supplier.supplierCode}">
+                        <input type="checkbox"
+                               th:id="'supplier-' + ${supplier.supplierCode}"
+                               th:checked="${selectedSuppliers != null and #arrays.contains(selectedSuppliers, supplier.supplierCode)}"
+                               class="supplier-filter-checkbox">
+                        <label th:for="'supplier-' + ${supplier.supplierCode}"
+                               style="margin: 0; padding-left: 5px;">
+                          <span th:text="${supplier.supplierCode}">SUP001</span>
+                          <span class="filter-count" th:text="'(' + ${supplier.productCount} + ')'">(10)</span>
+                        </label>
+                      </div>
+                    </th:block>
+                  </div>
+                  <hr style="margin: 5px 0;">
+                  <div class="text-center">
+                    <button class="btn btn-primary btn-sm" onclick="applySupplierFilter()">적용</button>
+                    <button class="btn btn-secondary btn-sm" onclick="resetSupplierFilter()">초기화</button>
+                  </div>
+                </div>
+              </th>
+
+              <th style="width: 100px;">상품코드</th>
+              <th style="width: 200px;">상품명</th>
+              <th style="width: 60px;">링크</th>
+              <th style="width: 60px;">단위값</th>
+              <th style="width: 50px;">단위</th>
+              <th style="width: 60px;">포장수량</th>
+              <th class="price-editable-cell" style="width: 80px;"><i class="fas fa-edit"></i> 판매가격</th>
+              <th class="stock-editable-cell" style="width: 60px;"><i class="fas fa-edit"></i> 재고</th>
+
+              <!-- 쿠팡 품목ID 컬럼 (NULL 필터 가능) -->
+              <th style="width: 120px;" class="filter-header">
+                쿠팡 품목ID
+                <button class="filter-dropdown-btn"
+                        data-filter="vendorItemId"
+                        th:classappend="${filterNullVendorItemId} ? 'filtered'"
+                        data-toggle="dropdown">
+                  <i class="fas fa-filter"></i>
+                </button>
+                <div class="dropdown-menu">
+                  <div class="dropdown-item">
+                    <input type="checkbox" id="filterNullVendorItemId"
+                           th:checked="${filterNullVendorItemId}"
+                           onchange="toggleNullFilter('vendorItemId', this.checked)">
+                    <label for="filterNullVendorItemId" style="margin: 0; padding-left: 5px;">
+                      NULL 항목만 표시
+                    </label>
+                  </div>
+                </div>
+              </th>
+
+              <!-- 쿠팡 상품ID 컬럼 (NULL 필터 가능) -->
+              <th style="width: 120px;" class="filter-header">
+                쿠팡 상품ID
+                <button class="filter-dropdown-btn"
+                        data-filter="sellerProductId"
+                        th:classappend="${filterNullSellerProductId} ? 'filtered'"
+                        data-toggle="dropdown">
+                  <i class="fas fa-filter"></i>
+                </button>
+                <div class="dropdown-menu">
+                  <div class="dropdown-item">
+                    <input type="checkbox" id="filterNullSellerProductId"
+                           th:checked="${filterNullSellerProductId}"
+                           onchange="toggleNullFilter('sellerProductId', this.checked)">
+                    <label for="filterNullSellerProductId" style="margin: 0; padding-left: 5px;">
+                      NULL 항목만 표시
+                    </label>
+                  </div>
+                </div>
+              </th>
+
+              <!-- 스마트스토어ID 컬럼 (NULL 필터 가능) -->
+              <th style="width: 120px;" class="filter-header">
+                스마트스토어ID
+                <button class="filter-dropdown-btn"
+                        data-filter="smartstoreId"
+                        th:classappend="${filterNullSmartstoreId} ? 'filtered'"
+                        data-toggle="dropdown">
+                  <i class="fas fa-filter"></i>
+                </button>
+                <div class="dropdown-menu">
+                  <div class="dropdown-item">
+                    <input type="checkbox" id="filterNullSmartstoreId"
+                           th:checked="${filterNullSmartstoreId}"
+                           onchange="toggleNullFilter('smartstoreId', this.checked)">
+                    <label for="filterNullSmartstoreId" style="margin: 0; padding-left: 5px;">
+                      NULL 항목만 표시
+                    </label>
+                  </div>
+                </div>
+              </th>
+
+              <!-- 11번가ID 컬럼 (NULL 필터 가능) -->
+              <th style="width: 100px;" class="filter-header">
+                11번가ID
+                <button class="filter-dropdown-btn"
+                        data-filter="elevenstId"
+                        th:classappend="${filterNullElevenstId} ? 'filtered'"
+                        data-toggle="dropdown">
+                  <i class="fas fa-filter"></i>
+                </button>
+                <div class="dropdown-menu">
+                  <div class="dropdown-item">
+                    <input type="checkbox" id="filterNullElevenstId"
+                           th:checked="${filterNullElevenstId}"
+                           onchange="toggleNullFilter('elevenstId', this.checked)">
+                    <label for="filterNullElevenstId" style="margin: 0; padding-left: 5px;">
+                      NULL 항목만 표시
+                    </label>
+                  </div>
+                </div>
+              </th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="product, iterStat : ${products}"
+                th:data-code="${product.code}"
+                th:data-supplier-code="${product.supplierCode}"
+                th:data-title="${product.title}"
+                th:data-link="${product.link}"
+                th:data-unit-value="${product.unitValue}"
+                th:data-unit="${product.unit}"
+                th:data-pack-qty="${product.packQty}"
+                th:data-sale-price="${product.salePrice}"
+                th:data-stock="${product.stock}"
+                th:data-kor-name="${product.korName}"
+                th:data-eng-name="${product.engName}"
+                th:data-brand-name="${product.brandName}"
+                th:data-vendor-item-id="${product.vendorItemId}"
+                th:data-seller-product-id="${product.sellerProductId}"
+                th:data-smartstore-id="${product.smartstoreId}"
+                th:data-origin-product-no="${product.originProductNo}"
+                th:data-elevenst-id="${product.elevenstId}">
+              <!-- 체크박스 -->
+              <td>
+                <input type="checkbox" class="product-checkbox"
+                       th:value="${product.code}">
+              </td>
+
+              <!-- 공급업체코드 -->
+              <td th:text="${product.supplierCode}">SUP001</td>
+
+              <!-- 상품코드 (클릭 시 상세페이지) -->
+              <td>
+                <a th:href="@{'/products/detail/' + ${product.code}}"
+                   class="product-link" th:text="${product.code}">PRD001</a>
+              </td>
+
+              <!-- 상품명 (클릭 시 상세페이지) -->
+              <td style="max-width: 200px;">
+                <a th:href="@{'/products/detail/' + ${product.code}}"
+                   class="product-link" th:text="${product.title}"
+                   th:title="${product.title}">상품명</a>
+              </td>
+
+              <!-- 링크 -->
+              <td>
+                <a th:href="${product.link}" target="_blank"
+                   class="btn btn-outline-primary btn-sm">
+                  <i class="fas fa-external-link-alt"></i>
+                </a>
+              </td>
+
+              <!-- 단위값 -->
+              <td th:text="${product.unitValue}">100</td>
+
+              <!-- 단위 -->
+              <td th:text="${product.unit}">g</td>
+
+              <!-- 포장수량 -->
+              <td th:text="${product.packQty}">1</td>
+
+              <!-- 판매가격 (더블클릭으로 편집 가능) -->
+              <td class="editable-cell price-cell"
+                  th:data-field="salePrice"
+                  th:text="${#numbers.formatInteger(product.salePrice, 0, 'COMMA')}">
+                10,000
+              </td>
+
+              <!-- 재고 (더블클릭으로 편집 가능) -->
+              <td class="editable-cell stock-cell"
+                  th:data-field="stock"
+                  th:text="${product.stock}">
+                100
+              </td>
+
+              <!-- 쿠팡 핵심 옵션/품목ID -->
+              <td th:text="${product.vendorItemId ?: '-'}">-</td>
+
+              <!-- 쿠팡 대표상품ID -->
+              <td th:text="${product.sellerProductId ?: '-'}">-</td>
+
+              <!-- 스마트스토어ID -->
+              <td th:text="${product.smartstoreId ?: '-'}">-</td>
+
+              <!-- 11번가ID -->
+              <td th:text="${product.elevenstId ?: '-'}">-</td>
+            </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- 페이지네이션 (기존과 동일) -->
+        <div class="row mt-3" th:if="${totalPages > 1}">
+          <div class="col-12">
+            <nav aria-label="상품 목록 페이지네이션">
+              <ul class="pagination justify-content-center">
+                <!-- 첫 페이지 -->
+                <li class="page-item" th:classappend="${!hasPrevious} ? 'disabled'">
+                  <a class="page-link" href="javascript:void(0)" onclick="goToPage(0)">
+                    <i class="fas fa-angle-double-left"></i>
+                  </a>
+                </li>
+
+                <!-- 이전 페이지 -->
+                <li class="page-item" th:classappend="${!hasPrevious} ? 'disabled'">
+                  <a class="page-link" href="javascript:void(0)"
+                     th:onclick="'goToPage(' + ${currentPage - 1} + ')'">
+                    <i class="fas fa-angle-left"></i>
+                  </a>
+                </li>
+
+                <!-- 페이지 번호 -->
+                <li class="page-item"
+                    th:each="pageNum : ${#numbers.sequence(startPage, endPage)}"
+                    th:classappend="${pageNum == currentPage} ? 'active'">
+                  <a class="page-link" href="javascript:void(0)"
+                     th:onclick="'goToPage(' + ${pageNum} + ')'"
+                     th:text="${pageNum + 1}">1</a>
+                </li>
+
+                <!-- 다음 페이지 -->
+                <li class="page-item" th:classappend="${!hasNext} ? 'disabled'">
+                  <a class="page-link" href="javascript:void(0)"
+                     th:onclick="'goToPage(' + ${currentPage + 1} + ')'">
+                    <i class="fas fa-angle-right"></i>
+                  </a>
+                </li>
+
+                <!-- 마지막 페이지 -->
+                <li class="page-item" th:classappend="${!hasNext} ? 'disabled'">
+                  <a class="page-link" href="javascript:void(0)"
+                     th:onclick="'goToPage(' + ${totalPages - 1} + ')'">
+                    <i class="fas fa-angle-double-right"></i>
+                  </a>
+                </li>
+              </ul>
+            </nav>
+          </div>
+        </div>
+
+        <!-- 데이터가 없을 때 -->
+        <div th:if="${#lists.isEmpty(products)}" class="text-center py-4">
+          <i class="fas fa-search fa-3x text-muted mb-3"></i>
+          <h5 class="text-muted">검색 결과가 없습니다.</h5>
+          <p class="text-muted">다른 검색어나 필터 조건으로 시도해보세요.</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+  <!-- /.container-fluid -->
+
+
+  <!-- 저장 상태 표시 -->
+  <div id="saveIndicator" class="alert alert-success save-indicator">
+    <i class="fas fa-check-circle"></i> 변경사항이 저장되었습니다.
+  </div>
+
+
+
+</div>
+<th:block layout:fragment="scripts">
+  <script>
+    var searchKeyword = /*[[${searchKeyword != null ? "'" + searchKeyword + "'" : "''"}]]*/ '';
+    var selectedSuppliers = /*[[${selectedSuppliers != null ? selectedSuppliers : '[]'}]]*/ [];
+    var filterNullVendorItemId = /*[[${filterNullVendorItemId}]]*/ false;
+    var filterNullSellerProductId = /*[[${filterNullSellerProductId}]]*/ false;
+    var filterNullSmartstoreId = /*[[${filterNullSmartstoreId}]]*/ false;
+    var filterNullElevenstId = /*[[${filterNullElevenstId}]]*/ false;
+
+    // 콘솔에 값 출력
+    console.log('searchKeyword:', searchKeyword);
+    console.log('selectedSuppliers:', selectedSuppliers, Array.isArray(selectedSuppliers));
+    console.log('filterNullVendorItemId:', filterNullVendorItemId);
+    console.log('filterNullSellerProductId:', filterNullSellerProductId);
+    console.log('filterNullSmartstoreId:', filterNullSmartstoreId);
+    console.log('filterNullElevenstId:', filterNullElevenstId);
+  </script>
+  <script src="/vendor/datatables/jquery.dataTables.min.js"></script>
+  <script src="/vendor/datatables/dataTables.bootstrap4.min.js"></script>
+
+  <script src="/js/pages/products/list.js"></script>
+</th:block>
+</html>

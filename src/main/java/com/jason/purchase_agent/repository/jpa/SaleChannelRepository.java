@@ -6,5 +6,5 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface SaleChannelRepository extends JpaRepository<SaleChannel, String> {
-  // channel_id(PK)가 기본키이기 때문에 Integer
+    // channel_id(PK)가 기본키이기 때문에 Integer
 }

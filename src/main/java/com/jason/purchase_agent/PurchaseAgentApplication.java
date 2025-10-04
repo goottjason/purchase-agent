@@ -6,8 +6,8 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 @SpringBootApplication
 public class PurchaseAgentApplication {
 
-	public static void main(String[] args) {
-		SpringApplication.run(PurchaseAgentApplication.class, args);
-	}
+    public static void main(String[] args) {
+        SpringApplication.run(PurchaseAgentApplication.class, args);
+    }
 
 }

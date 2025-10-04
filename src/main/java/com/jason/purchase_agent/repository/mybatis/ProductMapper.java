@@ -8,15 +8,15 @@ import java.util.List;
 
 @Mapper
 public interface ProductMapper {
-  List<ProductDetailDto> findProductsWithDetails(
-    @Param("offset") int offset,
-    @Param("limit") int limit,
-    @Param("searchKeyword") String searchKeyword,
-    @Param("supplierCode") String supplierCode
-  );
+    List<ProductDetailDto> findProductsWithDetails(
+            @Param("offset") int offset,
+            @Param("limit") int limit,
+            @Param("searchKeyword") String searchKeyword,
+            @Param("supplierCode") String supplierCode
+    );
 
-  Long countProductsWithDetails(
-    @Param("searchKeyword") String searchKeyword,
-    @Param("supplierCode") String supplierCode
-  );
+    Long countProductsWithDetails(
+            @Param("searchKeyword") String searchKeyword,
+            @Param("supplierCode") String supplierCode
+    );
 }

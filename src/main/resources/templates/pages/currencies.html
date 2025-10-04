@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layouts/admin-layout}">
+
+<div layout:fragment="content">
+  <!-- Begin Page Content -->
+  <div class="container-fluid">
+
+    <!-- Page Heading -->
+    <div class="d-sm-flex align-items-center justify-content-between mb-4" style="max-width: 1200px; margin: 0 auto;">
+      <h1 class="h3 mb-0 text-gray-800">환율 관리</h1>
+    </div>
+
+    <!-- 환율 등록 카드 -->
+    <div class="card shadow mb-4" style="max-width: 1200px; margin: 0 auto;">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">환율 등록</h6>
+      </div> <!-- End of Card Header -->
+      <div class="card-body">
+        <!-- 등록 폼 -->
+        <form id="currency-form" class="form-row mb-3">
+          <div class="form-group col">
+            <label for="currency-code">통화코드</label>
+            <input class="form-control mr-2" type="text" id="currency-code" maxlength="3" placeholder="통화코드(USD)" required>
+          </div>
+          <div class="form-group col">
+            <label for="exchange-rate">환율</label>
+            <input class="form-control mr-2" type="number" step="0.01" id="exchange-rate" placeholder="환율" required>
+          </div>
+          <div class="form-group col-auto"  style="display:flex; align-items:end;">
+            <button class="btn btn-success" type="submit">등록</button>
+          </div>
+        </form>
+      </div> <!-- End of Card Body -->
+    </div> <!-- End of Card -->
+
+    <!-- 환율 목록 카드 -->
+    <div class="card shadow mb-4" style="max-width: 1200px; margin: 0 auto;">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">환율 목록</h6>
+      </div> <!-- End of Card Header -->
+      <div class="card-body">
+        <!-- 테이블 -->
+        <table class="table table-bordered">
+          <thead>
+          <tr>
+            <th class="text-center">통화코드</th>
+            <th class="text-center">환율</th>
+            <th class="text-center">관리</th>
+          </tr>
+          </thead>
+          <tbody id="currency-list"></tbody>
+        </table>
+      </div> <!-- End of Card Body -->
+    </div> <!-- End of Card -->
+  </div> <!-- End of Container Fluid -->
+
+  <!-- 수정 모달 -->
+  <div class="modal fade" id="currencyEditModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <form id="currency-edit-form">
+          <div class="modal-header"><h5 class="modal-title">통화 수정</h5>
+            <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
+          </div>
+          <div class="modal-body">
+            <input type="hidden" id="edit-code">
+            <div class="form-group">
+              <label>환율</label>
+              <input type="number" step="0.01" id="edit-exchange" class="form-control" required>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-dismiss="modal">취소</button>
+            <button type="submit" class="btn btn-success">수정 완료</button>
+          </div>
+        </form>
+      </div> <!-- End of Modal Content -->
+    </div> <!-- End of Modal Dialog -->
+  </div> <!-- End of Edit Modal -->
+
+</div> <!-- End of Page Content -->
+
+<th:block layout:fragment="scripts">
+  <script src="/vendor/datatables/jquery.dataTables.min.js"></script>
+  <script src="/vendor/datatables/dataTables.bootstrap4.min.js"></script>
+  <script src="/js/pages/currencies.js"></script>
+</th:block>
+
+</html>

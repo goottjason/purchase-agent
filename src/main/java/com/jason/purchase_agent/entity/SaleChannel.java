@@ -13,13 +13,13 @@ import java.math.BigDecimal;
 @NoArgsConstructor
 @AllArgsConstructor
 public class SaleChannel {
-  @Id
-  @Column(name = "channel_code", length = 10)
-  private String channelCode;
+    @Id
+    @Column(name = "channel_code", length = 10)
+    private String channelCode;
 
-  @Column(name = "channel_name", length = 50)
-  private String channelName;
+    @Column(name = "channel_name", length = 50)
+    private String channelName;
 
-  @Column(name = "fee_rate", precision = 5, scale = 4)
-  private BigDecimal feeRate;
+    @Column(name = "fee_rate", precision = 5, scale = 4)
+    private BigDecimal feeRate;
 }

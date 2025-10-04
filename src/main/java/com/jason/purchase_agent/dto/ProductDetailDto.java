@@ -13,19 +13,19 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class ProductDetailDto {
-  private String productCode;
-  private String engName;
-  private String supplierCode;
-  private String supplierName;
-  private BigDecimal purchasePrice;
-  private BigDecimal weight;
-  private Boolean isAvailable;
-  private String categoryName;
-  private String sourceLink;
-  private LocalDateTime createdAt;
-  private LocalDateTime updatedAt;
+    private String productCode;
+    private String engName;
+    private String supplierCode;
+    private String supplierName;
+    private BigDecimal purchasePrice;
+    private BigDecimal weight;
+    private Boolean isAvailable;
+    private String categoryName;
+    private String sourceLink;
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
 
-  // 추가 계산 필드들 (필요시)
-  private BigDecimal exchangeRate;
-  private String currencyCode;
+    // 추가 계산 필드들 (필요시)
+    private BigDecimal exchangeRate;
+    private String currencyCode;
 }

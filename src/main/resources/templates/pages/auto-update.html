@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layouts/admin-layout}">
+
+<head>
+  <title>자동 가격/재고 업데이트</title>
+</head>
+
+<div layout:fragment="content">
+  <!-- Begin Page Content -->
+  <div class="container-fluid">
+    <style>
+    </style>
+    <!-- 1. 카드박스 + 테이블/폼 -->
+    <div class="card shadow mb-4">
+      <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">자동 가격/재고 업데이트</h6>
+      </div>
+      <div class="card-body">
+        <form id="batch-update-form">
+          <div class="form-row align-items-center">
+            <!-- 1. 공급업체 셀렉트박스 (supplier_name) -->
+            <div class="col-auto">
+              <label for="supplierSelect">공급업체:</label>
+              <select id="supplierSelect" name="supplierId" class="form-control">
+                <!-- 서버에서 supplier 리스트 받아서 options 추가 -->
+                <!-- <option value="1">한국유통</option> <option value="2">비타코스트</option> -->
+              </select>
+            </div>
+            <!-- 2. 마진율 입력박스 -->
+            <div class="col-auto">
+              <label for="marginInput">마진율(%):</label>
+              <input type="number" id="marginInput" name="marginRate" min="0" max="100" class="form-control" value="25">
+            </div>
+            <!-- 3. 쿠폰 할인율 입력 -->
+            <div class="col-auto">
+              <label for="couponInput">쿠폰할인율(%):</label>
+              <input type="number" id="couponInput" name="couponRate" min="0" max="100" class="form-control" value="5">
+            </div>
+            <!-- 4. 최소 마진 입력 -->
+            <div class="col-auto">
+              <label for="minMarginInput">최소마진(원):</label>
+              <input type="number" id="minMarginInput" name="minMarginPrice" min="0" class="form-control" value="5000">
+            </div>
+            <!-- 3. 진행버튼 -->
+            <div class="col-auto">
+              <button type="submit" id="updateBtn" class="btn btn-primary">자동 가격/재고 업데이트 진행</button>
+            </div>
+          </div>
+          <div class="form-row mt-3">
+            <!-- 4. 총 구매가격 입력박스/안내문구 -->
+            <div class="col-auto">
+              <label for="totalPurchaseInput">총 구매가격(원):</label>
+              <input type="number" id="totalPurchaseInput" class="form-control" placeholder="구매가격 입력" value="30000">
+            </div>
+            <div class="col-auto align-self-center">
+          <span id="priceEstimateMsg" class="font-weight-bold text-success ml-2">
+            예상 판매가격은 [ ] 원입니다.
+          </span>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- /.container-fluid -->
+
+<th:block layout:fragment="scripts">
+  <script src="/vendor/datatables/jquery.dataTables.min.js"></script>
+  <script src="/vendor/datatables/dataTables.bootstrap4.min.js"></script>
+  <script src="/js/pages/auto-update.js"></script>
+</th:block>
+
+</html>

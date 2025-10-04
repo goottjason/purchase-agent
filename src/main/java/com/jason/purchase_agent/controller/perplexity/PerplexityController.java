@@ -14,22 +14,22 @@ import java.util.Map;
 @RequestMapping("/api/perplexity")
 public class PerplexityController {
 
-  private final PerplexityService perplexityService;
+    private final PerplexityService perplexityService;
 
-  public PerplexityController(PerplexityService perplexityService) {
-    this.perplexityService = perplexityService;
-  }
-
-  @PostMapping("/query")
-  public Mono<ResponseEntity<String>> query(@RequestBody Map<String, String> request) {
-    String message = request.get("message");
-
-    if (message == null || message.trim().isEmpty()) {
-      return Mono.just(ResponseEntity.badRequest().body("메시지가 필요합니다."));
+    public PerplexityController(PerplexityService perplexityService) {
+        this.perplexityService = perplexityService;
     }
 
-    return perplexityService.sendQuery(message)
-      .map(response -> ResponseEntity.ok(response))
-      .onErrorReturn(ResponseEntity.status(500).body("서버 오류가 발생했습니다."));
-  }
+    @PostMapping("/query")
+    public Mono<ResponseEntity<String>> query(@RequestBody Map<String, String> request) {
+        String message = request.get("message");
+
+        if (message == null || message.trim().isEmpty()) {
+            return Mono.just(ResponseEntity.badRequest().body("메시지가 필요합니다."));
+        }
+
+        return perplexityService.sendQuery(message)
+                .map(response -> ResponseEntity.ok(response))
+                .onErrorReturn(ResponseEntity.status(500).body("서버 오류가 발생했습니다."));
+    }
 }

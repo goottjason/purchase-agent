@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layouts/admin-layout}">
+
+<head>
+  <title>상품자동등록</title>
+</head>
+
+<div layout:fragment="content">
+  <style>
+    /* === 토글 스타일 === */
+    /* 트리 토글 버튼 스타일 (클릭 가능한 펼치기/접기 버튼) */
+    :root {
+      --level: 0; /* 기본값 설정 */
+    }
+    .tree-toggle {
+      cursor: pointer;        /* 마우스 올렸을 때 손가락 모양 커서 표시 */
+      font-size: 1.1em;       /* 기본 글자크기보다 10% 크게 설정 */
+      color: #15835b;         /* 파란색 (부트스트랩 primary 색상) */
+    }
+    /* 트리 들여쓰기 레벨 조절 (계층 깊이에 따른 간격) */
+    .tree-indent {
+      display: inline-block;                    /* 인라인 블록 요소로 설정 */
+      width: calc(var(--level, 0) * 36px);    /* CSS 변수 --level에 18px를 곱한 만큼 들여쓰기 */
+      /* 예: level이 2면 36px, level이 3이면 54px 들여쓰기 */
+    }
+    /* 트리 접힌 상태 표시 아이콘 (▼ 아래쪽 화살표) */
+    .caret-down:before {
+      content: "▼";           /* 가상 요소로 아래쪽 삼각형 추가 */
+      margin-right: 4px;      /* 아이콘과 텍스트 사이 4px 간격 */
+    }
+    /* 트리 펼쳐진 상태 표시 아이콘 (▶ 오른쪽 화살표) */
+    .caret-right:before {
+      content: "▶";           /* 가상 요소로 오른쪽 삼각형 추가 */
+      margin-right: 4px;      /* 아이콘과 텍스트 사이 4px 간격 */
+    }
+    .tree-lastmark {
+      color:#aaa;
+      font-size:1rem;
+      margin-right:2px;
+      /* 필요에 따라 조정 */
+    }
+
+    /* === 폼 및 레이아웃 스타일 === */
+    /* 작은 크기 폼 컨트롤 최대 너비 제한 (현재 주석처리됨) */
+    /*.form-control-sm { max-width: 120px; }*/
+    /* 단계별 구분을 위한 하단 여백 */
+    .step {
+      margin-bottom: 36px;    /* 각 단계 사이에 36px 간격 추가 */
+    }
+
+    /* === 유틸리티 클래스 === */
+    /* 요소 숨김 처리 */
+    .hidden {
+      display: none;          /* 화면에서 완전히 숨김 (공간도 차지하지 않음) */
+    }
+    /* 진행바 애니메이션 효과 */
+    .progress-bar {
+      transition: width 0.6s; /* 진행바 너비 변경시 0.6초 동안 부드럽게 애니메이션 */
+    }
+  </style>
+
+  <!-- Begin Page Content -->
+  <div class="container-fluid">
+
+    <!-- Page Heading -->
+    <div class="d-sm-flex align-items-center justify-content-between mb-4"
+         style="max-width: 1500px; margin: 0 auto;">
+      <h1 class="h3 mb-0 text-gray-800">상품 등록</h1>
+    </div>
+
+    <!-- 1단계: 카테고리 선택 -->
+    <div class="card shadow mb-4 step" id="step1" style="max-width: 1500px; margin: 0 auto;">
+      <div class="card-header py-3">
+        <div class="d-flex align-items-center justify-content-between" style="min-height:48px;">
+          <h4 class="step-header font-weight-bold text-success m-0">
+            1단계. 카테고리 및 제품수 선택
+          </h4>
+          <form class="form-inline" id="search-form">
+            <input class="form-control mr-2" type="text" id="search-input" placeholder="카테고리명 검색">
+            <button class="btn btn-success" type="submit">검색</button>
+            <button class="btn btn-secondary ml-2" id="reset-button" type="button">초기화</button>
+          </form>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="alert alert-info py-2" style="padding-bottom:0.5rem;">
+          <div style="display:flex; align-items:center; gap:12px; min-height:32px;">
+            <label for="sort-order" style="margin:0; font-weight:500; font-size:1rem;">정렬순</label>
+            <select id="sort-order" class="form-control form-control-sm" style="width:160px; margin-right:12px;">
+              <option value="1">높은 평점순</option>
+              <option value="2">판매량순</option>
+              <option value="3">가격: 높음-낮음</option>
+              <option value="4">가격: 낮음-높음</option>
+              <option value="10">최신순</option>
+              <option value="12">평가수 많은순</option>
+              <option value="13">기획상품</option>
+              <option value="14">높은 할인순</option>
+            </select>
+            <span class="text-muted" style="font-size:0.95em;">※ 선택한 카테고리에 대해 선택한 정렬순으로 관련 상품을 불러옵니다.</span>
+          </div>
+        </div>
+        <table class="table table-bordered">
+          <colgroup>
+            <col style="width:10%;">
+            <col style="width:60%;">  <!-- 한·영 상품명 -->
+            <col style="width:10%;">   <!-- 단위 -->
+            <col style="width:20%;">   <!-- 구매가 -->
+          </colgroup>
+          <thead>
+          <tr>
+            <th class="text-center align-middle">선택</th>
+            <th class="text-center align-middle">카테고리명</th>
+            <th class="text-center align-middle">링크</th>
+            <th class="text-center align-middle">
+              제품수&nbsp; (일괄 :
+              <select id="default-count" class="form-control form-control-sm" style="width:90px; display:inline-block; height: inherit;">
+                <option>3</option>
+                <option>5</option>
+                <option selected>10</option>
+                <option>20</option>
+                <option>30</option>
+              </select>
+              )
+            </th>
+          </tr>
+          </thead>
+          <tbody id="category-tree-table"></tbody>
+        </table>
+        <div id="no-data-message" class="text-center p-4 text-muted" style="display:none;">조회된 카테고리가 없습니다.</div>
+        <div class="text-center align-middle">
+          <button id="start-fetch" class="btn btn-success">관련 상품 불러오기</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2단계: 제품 수집 결과 -->
+    <div class="card shadow mb-4 step hidden" id="step2" style="max-width: 1500px; margin: 0 auto;">
+      <div class="card-header py-3">
+        <div class="d-flex align-items-center justify-content-between" style="min-height:48px;">
+          <h4 class="step-header font-weight-bold text-success m-0">
+            2단계. 제품 정보 수집중
+          </h4>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="mb-2">
+          <div class="progress" style="height: 26px;">
+            <div class="progress-bar progress-bar-striped progress-bar-animated"
+                 role="progressbar" style="width: 0;" id="progress-bar">0%
+            </div>
+          </div>
+        </div>
+        <div id="product-table-area" class="hidden mt-4">
+          <table class="table table-bordered" id="step2-table">
+            <thead>
+            <tr>
+              <th class="text-center align-middle"><input type="checkbox" id="select-all-products" checked></th>
+              <th class="text-center align-middle">썸네일</th>
+              <th class="text-center align-middle">카테고리</th>
+              <th class="text-center align-middle">브랜드</th>
+              <th class="text-center align-middle">한글상품명</th>
+              <th class="text-center align-middle">가격</th>
+              <th class="text-center align-middle">구매가능여부</th>
+              <th class="text-center align-middle">비고</th>
+            </tr>
+            </thead>
+            <tbody id="product-table-body"></tbody>
+          </table>
+          <button id="go-step3" class="btn btn-success">상품등록 준비하기</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3단계: 상품정보 수정 -->
+    <div class="card shadow mb-4 step hidden" id="step3" style="max-width: 1500px; margin: 0 auto;">
+      <div class="card-header py-3">
+        <div class="d-flex align-items-center" style="min-height:48px;">
+          <h4 class="step-header font-weight-bold text-success m-0" style="margin-right:24px;">
+            3단계. 상품등록 정보 확정/수정
+          </h4>
+          <div class="d-flex align-items-center" style="gap:10px;">
+            <span>( 마진율 :</span>
+            <input type="number" class="form-control form-control-sm"
+                   id="global-margin-rate" value="23" min="0" max="99" step="1"
+                   style="width:60px; text-align:right;" />
+            <span>% )</span>
+          </div>
+        </div>
+      </div>
+      <div class="card-body">
+        <table class="table table-bordered">
+          <colgroup>
+            <col style="width:5%;">
+            <col style="width:45%;">  <!-- 한/영 상품명 -->
+            <col style="width:15%;">  <!-- 브랜드/단위 -->
+            <col style="width:10%;">   <!-- 구매가/묶음수/판매가 -->
+            <col style="width:15%;">   <!-- 스마트스토어/11번가 카테고리 -->
+            <col style="width:10%;">   <!-- 링크 -->
+          </colgroup>
+          <thead>
+          <tr style="text-align: center;">
+            <th class="text-center align-middle"><input type="checkbox" id="select-all-final" checked></th>
+            <th class="text-center align-middle">
+              <div>제품명(단위 제외)</div>
+              <div>영문상품명</div>
+            </th>
+            <th class="text-center align-middle">
+              <div>브랜드명</div>
+              <div>단위</div>
+            </th>
+            <th class="text-center align-middle">
+              <div>구매가</div>
+              <div>묶음수</div>
+              <div>판매가</div>
+            </th>
+            <th class="text-center align-middle">
+              <div>스마트스토어</div>
+              <div>11번가</div>
+            </th>
+            <th class="text-center align-middle">링크</th>
+          </tr>
+          </thead>
+          <tbody id="step3-table"></tbody>
+        </table>
+        <button id="submit-final" class="btn btn-success">최종상품등록</button>
+      </div>
+    </div>
+    <!-- content body 끝 -->
+  </div>
+
+  <!-- 등록 완료 모달 -->
+  <div class="modal fade" id="doneModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-body">
+          <div class="text-center py-3">
+            <div>상품을 각 오픈마켓에 등록중입니다.<br>20~30분 정도 소요되며,<br>
+              등록현황은 <a href="/status" class="btn btn-primary btn-sm">등록현황 페이지</a>에서 확인해주세요.
+            </div>
+          </div>
+          <div class="text-center pb-2">
+            <button type="button" class="btn btn-secondary" data-dismiss="modal">확인</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- /.container-fluid -->
+
+<th:block layout:fragment="scripts">
+  <script src="/vendor/datatables/jquery.dataTables.min.js"></script>
+  <script src="/vendor/datatables/dataTables.bootstrap4.min.js"></script>
+  <script src="/js/pages/product-registration.js"></script>
+</th:block>
+
+</html>

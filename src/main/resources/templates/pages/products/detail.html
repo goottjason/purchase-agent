@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layouts/admin-layout}">
+<head>
+  <title>상품 상세정보</title>
+</head>
+<div layout:fragment="content">
+  <style>
+    .form-control-custom {
+      padding-top: 0.5rem;
+      padding-bottom: 0.5rem;
+      font-size: 1.05rem;
+      line-height: 1.6;
+    }
+    .product-label {
+      font-size: 1.07rem;
+      margin-bottom: 0.2rem;
+      font-weight: 600;
+    }
+    .form-group {
+      margin-bottom: 1rem;
+    }
+    .memo-zone {
+      min-height: 70px;
+      background: #f8f9fa !important;
+      border: 1px solid #e0e0e0 !important;
+      border-radius: 0.35rem;
+      padding: 1.2rem 1rem;
+    }
+    /* 인풋박스 텍스트 스타일 동기화 */
+    .form-control-static, .form-control-custom {
+      font-size: 1.05rem;
+      line-height: 1.6;
+    }
+    /* 편집 모드 숨김 기본값 */
+    .edit-mode { display: none; }
+    .view-mode { display: block; }
+    /* 편집일 때 toggle용 */
+    .editing .edit-mode { display: block !important; }
+    .editing .view-mode { display: none !important; }
+  </style>
+  <!-- Begin Page Content -->
+  <div class="container-fluid">
+    <!-- Page Heading -->
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+      <!-- 페이지 제목 -->
+      <h1 class="h3 mb-0 text-gray-800">상품 상세정보</h1>
+      <!-- 액션 버튼들(수정/저장/취소/목록으로 -->
+      <div>
+        <button id="editBtn" class="btn btn-warning btn-sm mr-2">
+          <i class="fas fa-edit"></i> 수정
+        </button>
+        <button id="saveBtn" class="btn btn-success btn-sm mr-2" style="display: none;">
+          <i class="fas fa-save"></i> 저장
+        </button>
+        <button id="cancelBtn" class="btn btn-secondary btn-sm mr-2" style="display: none;">
+          <i class="fas fa-times"></i> 취소
+        </button>
+        <a href="/products/list" class="btn btn-primary btn-sm">
+          <i class="fas fa-arrow-left"></i> 목록으로
+        </a>
+      </div>
+    </div>
+    <!-- Content Row -->
+    <!-- Content Row -->
+    <form id="productForm" th:action="@{'/products/' + ${product.code}}" method="post">
+      <input type="hidden" name="_method" value="PUT">
+      <input type="hidden" name="code" th:value="${product.code}">
+      <div class="row align-items-stretch">
+        <div class="col-xl-8 col-lg-7">
+          <div class="card h-100 shadow mb-4">
+            <div class="card-header py-3">
+              <h6 class="m-0 font-weight-bold text-primary">기본 정보</h6>
+            </div>
+            <div class="card-body">
+              <div class="row">
+                <div class="col-md-3">
+                  <div class="form-group">
+                    <label class="product-label">상품코드</label>
+                    <p class="form-control-static view-mode text-muted" th:text="${product.code}">PRD001</p>
+                    <input type="text" class="form-control form-control-custom edit-mode" name="code" th:value="${product.code}" readonly>
+                  </div>
+                </div>
+                <div class="col-md-3">
+                  <div class="form-group">
+                    <label class="product-label">공급업체</label>
+                    <p class="form-control-static view-mode text-muted" th:text="${product.supplier?.supplierCode}">SUP001</p>
+                    <input type="text" class="form-control form-control-custom edit-mode" name="supplierCode" th:value="${product.supplier?.supplierCode}" readonly>
+                  </div>
+                </div>
+                <div class="col-md-3">
+                  <div class="form-group">
+                    <label class="product-label">브랜드명</label>
+                    <p class="form-control-static view-mode" th:text="${product.brandName}">Brand</p>
+                    <input type="text" class="form-control form-control-custom edit-mode" name="brandName" th:value="${product.brandName}">
+                  </div>
+                </div>
+                <div class="col-md-3">
+                  <div class="form-group">
+                    <label class="product-label">상품링크</label>
+                    <div class="view-mode">
+                      <a th:href="${product.link}" target="_blank" class="btn btn-outline-primary btn-sm">
+                        <i class="fas fa-external-link-alt"></i> 원본 페이지 보기
+                      </a>
+                    </div>
+                    <input type="url" class="form-control form-control-custom edit-mode" name="link" th:value="${product.link}">
+                  </div>
+                </div>
+              </div>
+              <div class="row">
+                <div class="col-md-12">
+                  <div class="form-group">
+                    <label class="product-label">상품명(Title)</label>
+                    <p class="form-control-static view-mode" th:text="${product.title}">상품명(Title)</p>
+                    <input type="text" class="form-control form-control-custom edit-mode" name="title" th:value="${product.title}">
+                  </div>
+                </div>
+              </div>
+              <div class="row">
+                <div class="col-md-12">
+                  <div class="form-group">
+                    <label class="product-label">제품명(KOR)</label>
+                    <p class="form-control-static view-mode" th:text="${product.korName}">제품명(KOR)</p>
+                    <input type="text" class="form-control form-control-custom edit-mode" name="korName" th:value="${product.korName}">
+                  </div>
+                </div>
+              </div>
+              <div class="row">
+                <div class="col-md-12">
+                  <div class="form-group">
+                    <label class="product-label">제품명(ENG)</label>
+                    <p class="form-control-static view-mode" th:text="${product.engName}">제품명(ENG)</p>
+                    <input type="text" class="form-control form-control-custom edit-mode" name="engName" th:value="${product.engName}">
+                  </div>
+                </div>
+              </div>
+              <div class="row">
+                <div class="col-md-3">
+                  <div class="form-group">
+                    <label class="product-label">단위값/단위</label>
+                    <div class="view-mode">
+                      <span th:text="${product.unitValue}">100</span>
+                      <span th:text="${product.unit}">g</span>
+                    </div>
+                    <div class="edit-mode">
+                      <div class="input-group">
+                        <input type="number" class="form-control form-control-custom" name="unitValue" th:value="${product.unitValue}" step="0.01">
+                        <input type="text" class="form-control form-control-custom" name="unit" th:value="${product.unit}" placeholder="단위">
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-md-3">
+                  <div class="form-group">
+                    <label class="product-label">무게</label>
+                    <p class="form-control-static view-mode" th:text="${product.weight}">0.5kg</p>
+                    <input type="text" class="form-control form-control-custom edit-mode" name="weight" th:value="${product.weight}">
+                  </div>
+                </div>
+                <div class="col-md-3">
+                  <div class="form-group">
+                    <label class="product-label">배송비</label>
+                    <p class="form-control-static view-mode" th:text="${product.shippingCost != null ? #numbers.formatInteger(product.shippingCost,0,'COMMA') + '원' : '-'}">2,500원</p>
+                    <input type="number" class="form-control form-control-custom edit-mode" name="shippingCost" th:value="${product.shippingCost}" step="1" min="0" placeholder="배송비">
+                  </div>
+                </div>
+                <div class="col-md-3">
+                  <div class="form-group">
+                    <label class="product-label">마진율(%)</label>
+                    <p class="form-control-static view-mode"
+                       th:text="${product.marginRate != null
+                       ? #numbers.formatDecimal(product.marginRate, 1, 'POINT', 0, 'COMMA') + '%'
+                       : '-'}"></p>
+                    <input type="number"
+                           class="form-control form-control-custom edit-mode"
+                           name="marginRate"
+                           th:value="${product.marginRate}"
+                           step="0.01" min="0" max="100" placeholder="마진율(%)">
+                  </div>
+                </div>
+              </div>
+              <div class="row mt-3">
+                <div class="col-md-3">
+                  <div class="form-group">
+                    <label class="product-label">매입가격</label>
+                    <p class="form-control-static view-mode text-info" th:text="${product.buyPrice != null ? #numbers.formatInteger(product.buyPrice,0,'COMMA') + '원' : '-'}">21,504원</p>
+                    <input type="number" class="form-control form-control-custom edit-mode" name="buyPrice" th:value="${product.buyPrice}">
+                  </div>
+                </div>
+                <div class="col-md-3">
+                  <div class="form-group">
+                    <label class="product-label">포장수량</label>
+                    <p class="form-control-static view-mode" th:text="${product.packQty} + '개'">2 개</p>
+                    <input type="number" class="form-control form-control-custom edit-mode" name="packQty" th:value="${product.packQty}">
+                  </div>
+                </div>
+                <div class="col-md-3">
+                  <div class="form-group">
+                    <label class="product-label">판매가격</label>
+                    <p class="form-control-static view-mode text-success font-weight-bold" th:text="${product.salePrice != null ? #numbers.formatInteger(product.salePrice,0,'COMMA') + '원' : '-'}">52,900원</p>
+                    <input type="number" class="form-control form-control-custom edit-mode" name="salePrice" th:value="${product.salePrice}">
+                  </div>
+                </div>
+                <div class="col-md-3">
+                  <div class="form-group">
+                    <label class="product-label">재고수량</label>
+                    <p class="form-control-static view-mode" th:text="${product.stock} + '개'">500 개</p>
+                    <input type="number" class="form-control form-control-custom edit-mode" name="stock" th:value="${product.stock}">
+                  </div>
+                </div>
+              </div>
+            </div> <!-- .card-body -->
+          </div> <!-- .card -->
+        </div> <!-- .col -->
+        <!-- 오른쪽: 판매 채널 -->
+        <div class="col-xl-4 col-lg-5">
+          <div class="card h-100 shadow mb-4 d-flex flex-column">
+            <div class="card-header py-3">
+              <h6 class="m-0 font-weight-bold text-primary">판매 채널</h6>
+            </div>
+            <div class="card-body flex-grow-1">
+              <div class="form-group">
+                <label class="product-label text-warning">쿠팡</label>
+                <div class="view-mode">
+                  <span class="d-block mb-1">품목ID: <span th:text="${product.productChannelMapping?.vendorItemId ?: '-'}" class="text-muted">-</span></span>
+                  <span>상품ID: <span th:text="${product.productChannelMapping?.sellerProductId ?: '-'}" class="text-muted">-</span></span>
+                </div>
+                <div class="edit-mode">
+                  <input type="text" class="form-control form-control-custom mb-2" name="vendorItemId" th:value="${product.productChannelMapping?.vendorItemId}" placeholder="품목ID">
+                  <input type="text" class="form-control form-control-custom" name="sellerProductId" th:value="${product.productChannelMapping?.sellerProductId}" placeholder="상품ID">
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="product-label text-success">스마트스토어</label>
+                <div class="view-mode">
+                  <span class="d-block mb-1">노출ID: <span th:text="${product.productChannelMapping?.smartstoreId ?: '-'}" class="text-muted">-</span></span>
+                  <span>상품ID: <span th:text="${product.productChannelMapping?.originProductNo ?: '-'}" class="text-muted">-</span></span>
+                </div>
+                <div class="edit-mode">
+                  <input type="text" class="form-control form-control-custom mb-2" name="smartstoreId" th:value="${product.productChannelMapping?.smartstoreId}" placeholder="노출ID">
+                  <input type="text" class="form-control form-control-custom" name="originProductNo" th:value="${product.productChannelMapping?.originProductNo}" placeholder="상품ID">
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="product-label text-danger">11번가</label>
+                <div class="view-mode">
+                  <span>상품ID: <span th:text="${product.productChannelMapping?.elevenstId ?: '-'}" class="text-muted">-</span></span>
+                </div>
+                <input type="text" class="form-control form-control-custom edit-mode" name="elevenstId" th:value="${product.productChannelMapping?.elevenstId}" placeholder="상품ID">
+              </div>
+              <hr>
+              <div class="form-group mt-4 mb-0">
+                <label class="product-label">메모</label>
+                <div class="view-mode memo-zone">
+                  <p class="form-control-static mb-0 text-muted" th:text="${product.memo ?: '메모가 없습니다.'}">메모가 없습니다.</p>
+                </div>
+                <textarea class="form-control form-control-custom memo-zone edit-mode" name="memo" rows="3" placeholder="메모를 입력하세요" th:text="${product.memo}"></textarea>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="row mt-4">
+        <div class="col-12">
+          <div class="card shadow mb-4">
+            <div class="card-header py-3">
+              <h6 class="m-0 font-weight-bold text-primary">상품 상세설명</h6>
+            </div>
+            <div class="card-body">
+              <div class="view-mode" th:utext="${product.detailsHtml}">상세설명 내용</div>
+              <textarea class="form-control form-control-custom edit-mode" name="detailsHtml" rows="10" th:text="${product.detailsHtml}" placeholder="상세설명을 입력하세요"></textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+    </form>
+  </div> <!-- /.container-fluid -->
+</div>
+
+<th:block layout:fragment="scripts">
+  <script src="/js/pages/products/detail.js"></script>
+</th:block>
+</html>

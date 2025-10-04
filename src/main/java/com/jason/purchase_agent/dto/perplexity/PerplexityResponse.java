@@ -12,13 +12,13 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class PerplexityResponse {
-  private List<Choice> choices;
+    private List<Choice> choices;
 
-  @Data
-  @Builder
-  @NoArgsConstructor
-  @AllArgsConstructor
-  public static class Choice {
-    private PerplexityMessage message;
-  }
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class Choice {
+        private PerplexityMessage message;
+    }
 }

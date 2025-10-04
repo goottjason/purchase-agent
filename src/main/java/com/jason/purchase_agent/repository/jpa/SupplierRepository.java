@@ -8,5 +8,5 @@ import java.util.Optional;
 
 @Repository
 public interface SupplierRepository extends JpaRepository<Supplier, String> {
-  Optional<Supplier> findBySupplierCode(String supplierCode);
+    // findById(String code) 사용 가능
 }

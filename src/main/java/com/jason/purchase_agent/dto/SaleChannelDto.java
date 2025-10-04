@@ -12,7 +12,7 @@ import java.math.BigDecimal;
 @NoArgsConstructor
 @AllArgsConstructor
 public class SaleChannelDto {
-  private String channelCode; // 수정시 필요
-  private String channelName;
-  private BigDecimal feeRate;
+    private String channelCode; // 수정시 필요
+    private String channelName;
+    private BigDecimal feeRate;
 }

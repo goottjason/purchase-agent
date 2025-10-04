@@ -6,5 +6,5 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface CurrencyRepository extends JpaRepository<Currency, String> {
-  // currency_code(PK)가 기본키이기 때문에 String
+    // currencyCode (PK) 기반
 }

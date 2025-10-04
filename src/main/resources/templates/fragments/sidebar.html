@@ -1,112 +1,74 @@
 <!DOCTYPE html>
 <html lang="en" xmlns:th="http://www.thymeleaf.org" th:fragment="sidebarFragment">
 <!-- Sidebar -->
-<ul class="navbar-nav bg-gradient-primary sidebar sidebar-dark accordion" id="accordionSidebar">
+<ul class="navbar-nav bg-gradient-success sidebar sidebar-dark accordion" id="accordionSidebar">
 
-  <!-- Sidebar - Brand -->
+  <!-- Sidebar - PURCHASE AGENT -->
   <a class="sidebar-brand d-flex align-items-center justify-content-center" th:href="@{/}">
     <div class="sidebar-brand-icon rotate-n-15">
       <i class="fas fa-laugh-wink"></i>
     </div>
-    <div class="sidebar-brand-text mx-3">SB Admin <sup>2</sup></div>
+    <div class="sidebar-brand-text mx-3">Purchase Agent</div>
   </a>
 
   <!-- Divider -->
   <hr class="sidebar-divider my-0">
-
-  <!-- Nav Item - Dashboard -->
+  <!-- Nav Item - 대시보드 -->
   <li class="nav-item active">
     <a class="nav-link" th:href="@{/}">
       <i class="fas fa-fw fa-tachometer-alt"></i>
-      <span>Dashboard</span></a>
+      <span>대시보드</span></a>
   </li>
-
   <!-- Divider -->
   <hr class="sidebar-divider">
-
-  <!-- Heading -->
-  <div class="sidebar-heading">
-    Interface
-  </div>
-
-  <!-- Nav Item - Pages Collapse Menu -->
+  <!-- Heading - 상품 -->
+  <div class="sidebar-heading">상품</div>
+  <!-- Nav Item - 상품관리 -->
   <li class="nav-item">
-    <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseTwo"
-       aria-expanded="true" aria-controls="collapseTwo">
-      <i class="fas fa-fw fa-cog"></i>
-      <span>Components</span>
-    </a>
-    <div id="collapseTwo" class="collapse" aria-labelledby="headingTwo" data-parent="#accordionSidebar">
-      <div class="bg-white py-2 collapse-inner rounded">
-        <h6 class="collapse-header">Custom Components:</h6>
-        <a class="collapse-item" th:href="@{/buttons}">Buttons</a>
-        <a class="collapse-item" th:href="@{/cards}">Cards</a>
-      </div>
-    </div>
-  </li>
-
-  <!-- Nav Item - Utilities Collapse Menu -->
-  <li class="nav-item">
-    <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseUtilities"
-       aria-expanded="true" aria-controls="collapseUtilities">
+    <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseUpdate"
+       aria-expanded="true" aria-controls="collapseUpdate">
       <i class="fas fa-fw fa-wrench"></i>
-      <span>Utilities</span>
+      <span>상품관리</span>
     </a>
-    <div id="collapseUtilities" class="collapse" aria-labelledby="headingUtilities"
+    <div id="collapseUpdate" class="collapse show" aria-labelledby="headingUtilities"
          data-parent="#accordionSidebar">
       <div class="bg-white py-2 collapse-inner rounded">
-        <h6 class="collapse-header">Custom Utilities:</h6>
-        <a class="collapse-item" th:href="@{/utilities/color}">Colors</a>
-        <a class="collapse-item" th:href="@{/utilities/border}">Borders</a>
-        <a class="collapse-item" th:href="@{/utilities/animation}">Animations</a>
-        <a class="collapse-item" th:href="@{/utilities/other}">Other</a>
+        <!-- Nav Item - 상품목록 -->
+        <a class="collapse-item" th:href="@{/products/list}"><i class="fas fa-fw fa-wrench"></i>상품목록</a>
+        <!-- Nav Item - 자동 가격/재고 업데이트 -->
+        <a class="collapse-item" th:href="@{/auto-update}"><i class="fas fa-fw fa-wrench"></i>자동 가격/재고 업데이트</a>
       </div>
     </div>
   </li>
-
+  <!-- Nav Item - 자동 상품등록 -->
+  <li class="nav-item">
+    <a class="nav-link" th:href="@{/product-registration}">
+      <i class="fas fa-fw fa-wrench"></i>
+      <span>자동 상품등록</span></a>
+  </li>
   <!-- Divider -->
-  <hr class="sidebar-divider">
-
-  <!-- Heading -->
-  <div class="sidebar-heading">
-    Addons
-  </div>
-
-  <!-- Nav Item - Pages Collapse Menu -->
+  <hr class="sidebar-divider d-none d-md-block">
+  <!-- Heading - 설정-->
+  <div class="sidebar-heading">설정</div>
+  <!-- Nav Item - 데이터관리 -->
   <li class="nav-item">
-    <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapsePages"
-       aria-expanded="true" aria-controls="collapsePages">
+    <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseDatas"
+       aria-expanded="true" aria-controls="collapseDatas">
       <i class="fas fa-fw fa-folder"></i>
-      <span>Pages</span>
+      <span>데이터관리</span>
     </a>
-    <div id="collapsePages" class="collapse" aria-labelledby="headingPages" data-parent="#accordionSidebar">
+    <div id="collapseDatas" class="collapse show" aria-labelledby="headingPages" data-parent="#accordionSidebar">
       <div class="bg-white py-2 collapse-inner rounded">
-        <h6 class="collapse-header">Login Screens:</h6>
-        <a class="collapse-item" th:href="@{/login}">Login</a>
-        <a class="collapse-item" th:href="@{/register}">Register</a>
-        <a class="collapse-item" th:href="@{/forgot-password}">Forgot Password</a>
+        <!-- Nav Item - 카테고리 -->
+        <a class="collapse-item" th:href="@{/categories}">카테고리</a>
+        <!-- Nav Item - 환율 -->
+        <a class="collapse-item" th:href="@{/currencies}">환율</a>
+        <!-- Nav Item - 공급업체 -->
+        <a class="collapse-item" th:href="@{/suppliers}">공급업체</a>
         <div class="collapse-divider"></div>
-        <h6 class="collapse-header">Other Pages:</h6>
-        <a class="collapse-item" th:href="@{/404}">404 Page</a>
-        <a class="collapse-item" th:href="@{/blank}">Blank Page</a>
       </div>
     </div>
   </li>
-
-  <!-- Nav Item - Charts -->
-  <li class="nav-item">
-    <a class="nav-link" th:href="@{/charts}">
-      <i class="fas fa-fw fa-chart-area"></i>
-      <span>Charts</span></a>
-  </li>
-
-  <!-- Nav Item - Tables -->
-  <li class="nav-item">
-    <a class="nav-link" th:href="@{/tables}">
-      <i class="fas fa-fw fa-table"></i>
-      <span>Tables</span></a>
-  </li>
-
   <!-- Divider -->
   <hr class="sidebar-divider d-none d-md-block">
 
@@ -118,10 +80,67 @@
   <!-- Sidebar Message -->
   <div class="sidebar-card d-none d-lg-flex">
     <img class="sidebar-card-illustration mb-2" src="/img/undraw_rocket.svg" alt="...">
-    <p class="text-center mb-2"><strong>SB Admin Pro</strong> is packed with premium features, components, and more!</p>
-    <a class="btn btn-success btn-sm" href="https://startbootstrap.com/theme/sb-admin-pro">Upgrade to Pro!</a>
+    <a class="btn btn-success btn-sm" th:href="@{/process-status}">등록현황</a>
   </div>
 
 </ul>
 <!-- End of Sidebar -->
 </html>
+
+
+
+<!--
+&lt;!&ndash; Heading &ndash;&gt;
+<div class="sidebar-heading">주문</div>
+
+&lt;!&ndash; Nav Item - Pages Collapse Menu &ndash;&gt;
+<li class="nav-item">
+  <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapsePages"
+     aria-expanded="true" aria-controls="collapsePages">
+    <i class="fas fa-fw fa-folder"></i>
+    <span>주문관리</span>
+  </a>
+  <div id="collapsePages" class="collapse" aria-labelledby="headingPages" data-parent="#accordionSidebar">
+    <div class="bg-white py-2 collapse-inner rounded">
+      <h6 class="collapse-header">Login Screens:</h6>
+      <a class="collapse-item" th:href="@{/login}">자동 주문등록</a>
+      <a class="collapse-item" th:href="@{/register}">주문목록</a>
+      <a class="collapse-item" th:href="@{/forgot-password}">Forgot Password</a>
+      <div class="collapse-divider"></div>
+      <h6 class="collapse-header">Other Pages:</h6>
+      <a class="collapse-item" th:href="@{/404}">404 Page</a>
+      <a class="collapse-item" th:href="@{/blank}">Blank Page</a>
+    </div>
+  </div>
+</li>
+
+&lt;!&ndash; Nav Item - Charts &ndash;&gt;
+<li class="nav-item">
+  <a class="nav-link" th:href="@{/charts}">
+    <i class="fas fa-fw fa-chart-area"></i>
+    <span>Charts</span></a>
+</li>
+
+&lt;!&ndash; Nav Item - Tables &ndash;&gt;
+<li class="nav-item">
+  <a class="nav-link" th:href="@{/tables}">
+    <i class="fas fa-fw fa-table"></i>
+    <span>Tables</span></a>
+</li>
+-->
+
+<!--
+
+&lt;!&ndash; Nav Item - Charts &ndash;&gt;
+<li class="nav-item">
+  <a class="nav-link" th:href="@{/charts}">
+    <i class="fas fa-fw fa-chart-area"></i>
+    <span>Charts</span></a>
+</li>
+
+&lt;!&ndash; Nav Item - Tables &ndash;&gt;
+<li class="nav-item">
+  <a class="nav-link" th:href="@{/tables}">
+    <i class="fas fa-fw fa-table"></i>
+    <span>Tables</span></a>
+</li>-->
