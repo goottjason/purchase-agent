@@ -81,14 +81,16 @@ public class CoupangApiService {
             Map<String, Object> apiResult = objectMapper.readValue(res, new TypeReference<Map<String, Object>>() {});
             log.debug("[CoupangAPI][Stock] 파싱 결과: {}", apiResult);
             /**
-             * {path=/api/v1/marketplace/vendor-items/15792671225/quantities/489,
-             * error=FORBIDDEN,
-             * message=Your ip address 61.74.244.30 is not allowed for this request.,
-             * timestamp=1759566682420,
-             * status=403}
+             * {
+             *      path=/api/v1/marketplace/vendor-items/15792671225/quantities/489,
+             *      error=FORBIDDEN,
+             *      message=Your ip address 61.74.244.30 is not allowed for this request.,
+             *      timestamp=1759566682420,
+             *      status=403
+             * }
              */
 
-            /*Object errorObj = apiResult.get("error");
+            Object errorObj = apiResult.get("error");
             if (errorObj != null) {
                 if (errorObj instanceof Map) {
                     // error가 Map일 때 (예: {code: 123, message: "msg"})
@@ -99,7 +101,7 @@ public class CoupangApiService {
                 } else if (errorObj instanceof String) {
                     // error가 문자열일 때 (예: "FORBIDDEN", "INVALID", 등)
                     result.put("success", false);
-                    result.put("errorCode", errorObj); // errorCode에 error 문자열 값 직접
+                    result.put("errorCode", errorObj); // errorCode에 error 문자열 값 직접 ("FORBIDDEN")
                     result.put("errorMsg", apiResult.get("message")); // 상세 메시지는 Map에서 가져옴
                     result.put("errorPath", apiResult.get("path"));
                     result.put("errorStatus", apiResult.get("status"));
@@ -113,9 +115,9 @@ public class CoupangApiService {
                 // 정상 성공 케이스
                 result.put("success", true);
                 result.put("data", apiResult);
-            }*/
+            }
 
-            if (apiResult.containsKey("error")) {
+            /*if (apiResult.containsKey("error")) {
                 Map<String, Object> error = (Map<String, Object>) apiResult.get("error");
                 log.warn("[CoupangAPI][Stock] 에러 응답 - error={}", error);
 
@@ -127,7 +129,7 @@ public class CoupangApiService {
 
                 result.put("success", true);
                 result.put("data", apiResult);
-            }
+            }*/
         } catch (Exception e) {
             log.error("[CoupangAPI][Stock] 요청/파싱 에러 - vendorItemId={}, stock={}, 원인={}", vendorItemId, stock, e.getMessage(), e);
 

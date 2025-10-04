@@ -51,6 +51,7 @@ public class MessageQueueService {
         // 메시지 발행
         rabbitTemplate.convertAndSend("price-update-" + channel, msg);
     }
+
     // 재고 변경 메시지 발행
     public void publishStockUpdate(
             String channel, Product product, ProductChannelMapping mapping, String batchId
