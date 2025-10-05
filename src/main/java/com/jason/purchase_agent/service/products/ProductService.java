@@ -60,10 +60,11 @@ public class ProductService {
 
         // 필터 조건 로그 출력
         if (searchDto.hasChannelNullFilters()) {
-            log.info("채널 null 필터 적용 - 쿠팡품목ID: {}, 쿠팡상품ID: {}, 스마트스토어ID: {}, 11번가ID: {}",
+            log.info("채널 null 필터 적용 - 쿠팡품목ID: {}, 쿠팡상품ID: {}, 스마트스토어노출ID: {}, 스마트스토어상품ID: {}, 11번가상품ID: {}",
                     searchDto.getFilterNullVendorItemId(),
                     searchDto.getFilterNullSellerProductId(),
                     searchDto.getFilterNullSmartstoreId(),
+                    searchDto.getFilterNullOriginProductNo(),
                     searchDto.getFilterNullElevenstId());
         }
 
@@ -74,6 +75,7 @@ public class ProductService {
                 Boolean.TRUE.equals(searchDto.getFilterNullVendorItemId()),
                 Boolean.TRUE.equals(searchDto.getFilterNullSellerProductId()),
                 Boolean.TRUE.equals(searchDto.getFilterNullSmartstoreId()),
+                Boolean.TRUE.equals(searchDto.getFilterNullOriginProductNo()),
                 Boolean.TRUE.equals(searchDto.getFilterNullElevenstId()),
                 pageable
         );
@@ -272,7 +274,25 @@ public class ProductService {
             // 5. 채널별 가격/재고 동기화 메시지 처리
             log.info("[MessageQueue] 채널별 동기화 메시지 전송 시작 - priceChanged={}, stockChanged={}",
                     priceChanged, stockChanged);
-            syncToChannels(mapping, product, batchId, priceChanged, stockChanged);
+
+            // 1) 쿠팡 채널만 별도 분기
+            if (needCoupangSync(mapping, priceChanged, stockChanged)) {
+                if (mapping.getVendorItemId() == null || mapping.getVendorItemId().isBlank()) {
+                    // vendorItemId 없음(필요) → vendorItemIdSyncMessage만 발행 후 종료
+                    messageQueueService.publishVendorItemIdSync(mapping, product, batchId, priceChanged, stockChanged);
+                    log.info("[MQ][VENDOR_ID_SYNC] 큐 발행 후 후속 동기화는 비동기로 실행됨");
+                } else {
+                    // vendorItemId 존재 → Price/Stock 메시지 바로 발행
+                    if (priceChanged) messageQueueService.publishPriceUpdate("coupang", product, mapping, batchId);
+                    if (stockChanged) messageQueueService.publishStockUpdate("coupang", product, mapping, batchId);
+                    log.info("[MQ][COUPANG] Price/Stock 업데이트 메시지 직접 발행(동기진행)");
+                }
+            }
+
+            // 2) 타 채널 메시지는 기존 로직 유지
+            syncToChannelsForOtherChannels(mapping, product, batchId, priceChanged, stockChanged);
+            // syncToChannels(mapping, product, batchId, priceChanged, stockChanged);
+
             log.info("[MessageQueue] 채널별 메시지 전송 완료");
 
             // 6. 처리 완료 batchId 반환
@@ -288,6 +308,55 @@ public class ProductService {
             throw ex;
         }
     }
+
+    /**
+     * 쿠팡 채널에 대한 동기화(가격/재고) 작업이 필요한지 여부 판단.
+     * vendorItemId 또는 sellerProductId 있는지, 가격/재고 변경 플래그 등 조건 조합 가능
+     */
+    private boolean needCoupangSync(ProductChannelMapping mapping, boolean priceChanged, boolean stockChanged) {
+        boolean hasCoupangId = mapping.getSellerProductId() != null && !mapping.getSellerProductId().isBlank();
+        // 만약 vendorItemId까지 체크하려면 아래처럼 (없어도 됨)
+        // boolean hasVendorItemId = mapping.getVendorItemId() != null && !mapping.getVendorItemId().isBlank();
+        // return hasCoupangId && (priceChanged || stockChanged);
+        return hasCoupangId && (priceChanged || stockChanged);
+    }
+
+    /**
+     * 쿠팡 외 타 채널(스마트스토어, 11번가 등) 동기화 메시지 발송 (기존 방식 유지)
+     */
+    private void syncToChannelsForOtherChannels(
+            ProductChannelMapping mapping, Product product,
+            String batchId, boolean priceChanged, boolean stockChanged
+    ) {
+        Map<String, String> channelIdProps = new HashMap<>();
+        // Coupang은 제외!
+        // if (mapping.getVendorItemId() != null) channelIdProps.put("coupang", mapping.getVendorItemId());
+        if (mapping.getOriginProductNo() != null) channelIdProps.put("smartstore", mapping.getOriginProductNo());
+        if (mapping.getElevenstId() != null) channelIdProps.put("elevenst", mapping.getElevenstId());
+
+        log.info("[SYNC][OTHERS] 타 채널 동기화 시작 - batchId={}, priceChanged={}, stockChanged={}, channels={}",
+                batchId, priceChanged, stockChanged, channelIdProps.keySet());
+
+        if (priceChanged) {
+            channelIdProps.forEach((channel, id) -> {
+                if (id != null) {
+                    messageQueueService.publishPriceUpdate(channel, product, mapping, batchId);
+                    log.debug("[MQ][PRICE][{}] 메시지 발송 완료 - id={}, batchId={}", channel, id, batchId);
+                }
+            });
+        }
+        if (stockChanged) {
+            channelIdProps.forEach((channel, id) -> {
+                if (id != null) {
+                    messageQueueService.publishStockUpdate(channel, product, mapping, batchId);
+                    log.debug("[MQ][STOCK][{}] 메시지 발송 완료 - id={}, batchId={}", channel, id, batchId);
+                }
+            });
+        }
+
+        log.info("[SYNC][OTHERS] 타 채널 동기화 종료 - batchId={}", batchId);
+    }
+
 
     /**
      * 최초 요청 시, 요청 데이터와 변경 플래그를 JSON으로 직렬화하여 details 필드로 저장.
@@ -420,8 +489,8 @@ public class ProductService {
             String batchId, boolean priceChanged, boolean stockChanged
     ) {
         Map<String, String> channelIdProps = new HashMap<>();
-        if (mapping.getSellerProductId() != null) channelIdProps.put("coupang", mapping.getSellerProductId());
-        if (mapping.getSmartstoreId() != null) channelIdProps.put("smartstore", mapping.getSmartstoreId());
+        if (mapping.getVendorItemId() != null) channelIdProps.put("coupang", mapping.getVendorItemId());
+        if (mapping.getOriginProductNo() != null) channelIdProps.put("smartstore", mapping.getOriginProductNo());
         if (mapping.getElevenstId() != null) channelIdProps.put("elevenst", mapping.getElevenstId());
 
         log.info("[SYNC] 채널별 동기화 시작 - batchId={}, priceChanged={}, stockChanged={}, channels={}",

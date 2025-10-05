@@ -79,5 +79,6 @@ public class RabbitMQConfig {
     public Queue stockUpdateElevenstQueue() {
         return new Queue("stock-update-elevenst", true);
     }
-
+    @Bean
+    public Queue vendorItemIdSyncCoupangQueue() { return new Queue("vendoritemid-sync-coupang", true); }
 }

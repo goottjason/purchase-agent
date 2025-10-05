@@ -61,6 +61,8 @@ public interface ProductRepository extends JpaRepository<Product, String> {
             "AND (:filterNullSellerProductId = false OR pcm.sellerProductId IS NULL) " +
             // 스마트스토어ID null 필터
             "AND (:filterNullSmartstoreId = false OR pcm.smartstoreId IS NULL) " +
+            // 스마트스토어ID null 필터
+            "AND (:filterNullOriginProductNo = false OR pcm.originProductNo IS NULL) " +
             // 11번가ID null 필터
             "AND (:filterNullElevenstId = false OR pcm.elevenstId IS NULL) ")
     Page<Product> findProductsWithFilters(
@@ -69,6 +71,7 @@ public interface ProductRepository extends JpaRepository<Product, String> {
             @Param("filterNullVendorItemId") Boolean filterNullVendorItemId,
             @Param("filterNullSellerProductId") Boolean filterNullSellerProductId,
             @Param("filterNullSmartstoreId") Boolean filterNullSmartstoreId,
+            @Param("filterNullOriginProductNo") Boolean filterNullOriginProductNo,
             @Param("filterNullElevenstId") Boolean filterNullElevenstId,
             Pageable pageable
     );

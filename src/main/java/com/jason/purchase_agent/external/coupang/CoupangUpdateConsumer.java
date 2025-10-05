@@ -13,7 +13,7 @@ import java.util.Map;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class CoupangPriceUpdateConsumer {
+public class CoupangUpdateConsumer {
 
     private final CoupangApiService coupangApiService;
     private final ProcessStatusService processStatusService;

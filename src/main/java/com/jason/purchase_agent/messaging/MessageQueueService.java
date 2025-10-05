@@ -5,6 +5,7 @@ import com.jason.purchase_agent.dto.product_registration.ProductRegistrationMess
 import com.jason.purchase_agent.dto.product_registration.ProductRegistrationRetryMessage;
 import com.jason.purchase_agent.dto.products.PriceUpdateMessage;
 import com.jason.purchase_agent.dto.products.StockUpdateMessage;
+import com.jason.purchase_agent.dto.products.VendorItemIdSyncMessage;
 import com.jason.purchase_agent.entity.Product;
 import com.jason.purchase_agent.entity.ProductChannelMapping;
 import com.jason.purchase_agent.dto.products.BatchAutoPriceStockUpdateMessage;
@@ -26,6 +27,27 @@ public class MessageQueueService {
             "products.batch_auto_price_stock_update_queue";
     private static final String PRODUCTS_BATCH_MANUAL_PRICE_STOCK_UPDATE_QUEUE =
             "products.batch_manual_price_stock_update_queue";
+
+
+
+    /**
+     * vendorItemId가 없는 경우, vendorItemId 조회/동기화 메시지를 큐로 발행
+     */
+    public void publishVendorItemIdSync(
+            ProductChannelMapping mapping, Product product, String batchId, boolean priceChanged, boolean stockChanged
+    ) {
+        VendorItemIdSyncMessage msg = VendorItemIdSyncMessage.builder()
+                .productCode(mapping.getProductCode())
+                .sellerProductId(mapping.getSellerProductId())
+                .batchId(batchId)
+                .priceChanged(priceChanged)
+                .stockChanged(stockChanged)
+                .salePrice(product.getSalePrice())
+                .stock(product.getStock())
+                .build();
+        log.info("[MQ][VENDOR_ID_SYNC] 메시지 발행 - batchId={}, productCode={}, sellerProductId={}", batchId, mapping.getProductCode(), mapping.getSellerProductId());
+        rabbitTemplate.convertAndSend("vendoritemid-sync-coupang", msg);
+    }
 
     // 가격 변경 메시지 발행
     public void publishPriceUpdate(
@@ -80,7 +102,7 @@ public class MessageQueueService {
         String channelId;
         switch (channel) {
             case "coupang":
-                channelId = mapping.getSellerProductId();
+                channelId = mapping.getVendorItemId();
                 break;
             case "smartstore":
                 channelId = mapping.getOriginProductNo();

@@ -28,6 +28,25 @@ import static com.jason.purchase_agent.util.salechannelapi.coupang.CoupangApiUti
 @RequiredArgsConstructor
 public class CoupangApiService {
 
+    public String findProductInfo(String sellerProductId) {
+        log.info("[CoupangAPI][ProductInfo] 상품 조회 요청 - sellerProductId={}", sellerProductId);
+        try {
+            String path = String.format("/v2/providers/seller_api/apis/api/v1/marketplace/seller-products/%s", sellerProductId);
+            log.debug("[CoupangAPI][ProductInfo] 요청 경로: {}", path);
+
+            // 기존 executeRequest를 GET메서드로 활용
+            String response = executeRequest("GET", path, null, null);
+            log.debug("[CoupangAPI][ProductInfo] API 원본 응답: {}", response);
+
+            return response;
+        } catch (Exception e) {
+            log.error("[CoupangAPI][ProductInfo] 요청/파싱 에러 - sellerProductId={}, 원인={}", sellerProductId, e.getMessage(), e);
+            // 필요시 에러 JSON etc
+            return "{}";
+        }
+    }
+
+
     public Map<String, Object> updatePrice(String vendorItemId, Integer salePrice) {
         Map<String, Object> result = new HashMap<>();
         log.info("[CoupangAPI][Price] 가격 변경 요청 - vendorItemId={}, salePrice={}", vendorItemId, salePrice);

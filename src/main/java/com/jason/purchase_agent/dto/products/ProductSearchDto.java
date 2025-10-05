@@ -25,6 +25,7 @@ public class ProductSearchDto {
     private Boolean filterNullVendorItemId; // 쿠팡 품목ID null 필터
     private Boolean filterNullSellerProductId; // 쿠팡 상품ID null 필터
     private Boolean filterNullSmartstoreId;  // 스마트스토어ID null 필터
+    private Boolean filterNullOriginProductNo;  // 스마트스토어ID null 필터
     private Boolean filterNullElevenstId;    // 11번가ID null 필터
 
     // 필터 적용 여부 체크
@@ -36,6 +37,7 @@ public class ProductSearchDto {
         return Boolean.TRUE.equals(filterNullVendorItemId) ||
                 Boolean.TRUE.equals(filterNullSellerProductId) ||
                 Boolean.TRUE.equals(filterNullSmartstoreId) ||
+                Boolean.TRUE.equals(filterNullOriginProductNo) ||
                 Boolean.TRUE.equals(filterNullElevenstId);
     }
 }
