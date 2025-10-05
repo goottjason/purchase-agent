@@ -34,7 +34,8 @@ public class MessageQueueService {
      * vendorItemId가 없는 경우, vendorItemId 조회/동기화 메시지를 큐로 발행
      */
     public void publishVendorItemIdSync(
-            ProductChannelMapping mapping, Product product, String batchId, boolean priceChanged, boolean stockChanged
+            ProductChannelMapping mapping, Product product, String batchId,
+            boolean priceChanged, boolean stockChanged
     ) {
         VendorItemIdSyncMessage msg = VendorItemIdSyncMessage.builder()
                 .productCode(mapping.getProductCode())
@@ -45,7 +46,8 @@ public class MessageQueueService {
                 .salePrice(product.getSalePrice())
                 .stock(product.getStock())
                 .build();
-        log.info("[MQ][VENDOR_ID_SYNC] 메시지 발행 - batchId={}, productCode={}, sellerProductId={}", batchId, mapping.getProductCode(), mapping.getSellerProductId());
+        log.info("[MQ][VENDOR_ID_SYNC] 메시지 발행 - batchId={}, productCode={}, sellerProductId={}",
+                batchId, mapping.getProductCode(), mapping.getSellerProductId());
         rabbitTemplate.convertAndSend("vendoritemid-sync-coupang", msg);
     }
 

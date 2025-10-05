@@ -224,14 +224,17 @@ public class ProductService {
             boolean priceChanged, boolean stockChanged, String batchId
     ) {
 
-        log.info("[Start] 상품/연동정보 업데이트 시작 - code={}, priceChanged={}, stockChanged={}, batchId={}",
+        log.info("[Start] 상품 업데이트 시작 - code={}, priceChanged={}, stockChanged={}, batchId={}",
                 code, priceChanged, stockChanged, batchId);
-        log.debug("[RequestDTO] = {}", request);
 
         boolean isRetry = (batchId != null && !batchId.isEmpty());
         String detailsJson = null;
         try {
-            // 1. 요청 데이터 직렬화/복원 – 최초/재시도 분기
+
+            /** (1) details 관련 처리 (최초 / 재시도 분기)
+             * 최초 시도시, batchId 생성 + 요청정보 JSON으로 직렬화하여 details 필드로 저장
+             * 재시도시, ProcessStatus 테이블에서 요청의 details 필드를 역직렬화하여 요청정보에 저장
+             */
             if (!isRetry) {
                 batchId = UUID.randomUUID().toString();
                 detailsJson = serializeDetails(request, priceChanged, stockChanged);
@@ -244,59 +247,68 @@ public class ProductService {
                 priceChanged = restored.priceChanged;
                 stockChanged = restored.stockChanged;
                 log.debug("[Batch] 이력 복원 후 Request: {}", request);
-                detailsJson = null; // 이미 기록됨
+                detailsJson = null; // 이미 기록됨 (null로 두면, 기록된 데이터 유지)
             }
 
-            // 2. 처리 시작 상태 기록
+            /** (2) process_status 테이블에 DB SAVE - PENDING 기록
+             * 최초 시도시, insert
+             * 재시도시, update
+             */
             upsertProcessStatusStart(batchId, code, detailsJson, isRetry);
             log.info("[ProcessStatus] 처리 시작 상태 기록 완료 - batchId={}", batchId);
 
-            // 3. DB에서 상품/채널 정보 조회 및 값 업데이트
+            /** (3) product, mapping 테이블 조회하여 엔티티로 저장
+             * product 조회 (불가능시, throw)
+             * mapping 조회 (불가능시, 각 채널 ID null로 하여 insert)
+             */
             Product product = getProductOrThrow(code);
-            log.info("[DB] 상품 조회 성공 - code={}", code);
             ProductChannelMapping mapping = findOrCreateChannelMapping(code);
-            log.info("[DB] 채널맵핑 조회/생성 성공 - code={}", code);
+            log.info("[DB] 상품/채널맵핑 조회/생성 성공 - code={}", code);
 
+            /** (4) request 값을 product, mapping 테이블에 업데이트 (DB 저장)
+             */
             updateProductFields(product, request);
-            log.debug("[DB] 상품 필드 업데이트 완료 - {}", product);
             updateChannelMappingFields(mapping, request);
-            log.debug("[DB] 채널 매핑 필드 업데이트 완료 - {}", mapping);
-
             productRepository.save(product);
             mappingRepository.save(mapping);
             log.info("[DB] 상품/채널 정보 DB 저장 성공 - code={}", code);
 
-            // 4. DB처리 성공 상태 기록
+            /** (5) process_status 테이블에 DB SAVE - SUCCESS|FAIL 기록
+             *
+             */
             processStatusService.upsertProcessStatus(
-                    batchId, code, null, "DB SAVE", "SUCCESS", "상품/연동정보 DB 저장 완료");
+                    batchId, code, null,
+                    "CHANNEL UPDATE", "PENDING", "{}");
             log.info("[ProcessStatus] DB 저장 완료 상태 기록 - batchId={}", batchId);
 
-            // 5. 채널별 가격/재고 동기화 메시지 처리
-            log.info("[MessageQueue] 채널별 동기화 메시지 전송 시작 - priceChanged={}, stockChanged={}",
-                    priceChanged, stockChanged);
-
-            // 1) 쿠팡 채널만 별도 분기
+            /** (6) 메시지 발행 (쿠팡 채널 / 타 채널 분기)
+             * 쿠팡 채널
+             *   - sellerProductId(O), vendorItemId(X), 가격/재고 업데이트 필요 : Sync 발행 (내부에서 Update 발행)
+             *   - sellerProductId(O), vendorItemId(O), 가격/재고 업데이트 필요 : Update 발행
+             * 타 채널
+             *   - originProductNo(O), 가격/재고 업데이트 필요 : Update 발행
+             *   - elevenstId(O), 가격/재고 업데이트 필요 : Update 발행
+             */
             if (needCoupangSync(mapping, priceChanged, stockChanged)) {
                 if (mapping.getVendorItemId() == null || mapping.getVendorItemId().isBlank()) {
-                    // vendorItemId 없음(필요) → vendorItemIdSyncMessage만 발행 후 종료
-                    messageQueueService.publishVendorItemIdSync(mapping, product, batchId, priceChanged, stockChanged);
-                    log.info("[MQ][VENDOR_ID_SYNC] 큐 발행 후 후속 동기화는 비동기로 실행됨");
+                    messageQueueService.publishVendorItemIdSync(
+                            mapping, product, batchId, priceChanged, stockChanged);
+                    log.info("[MQ][VENDOR_ID_SYNC] 발행");
                 } else {
                     // vendorItemId 존재 → Price/Stock 메시지 바로 발행
-                    if (priceChanged) messageQueueService.publishPriceUpdate("coupang", product, mapping, batchId);
-                    if (stockChanged) messageQueueService.publishStockUpdate("coupang", product, mapping, batchId);
-                    log.info("[MQ][COUPANG] Price/Stock 업데이트 메시지 직접 발행(동기진행)");
+                    if (priceChanged) messageQueueService.publishPriceUpdate(
+                            "coupang", product, mapping, batchId);
+                    if (stockChanged) messageQueueService.publishStockUpdate(
+                            "coupang", product, mapping, batchId);
+                    log.info("[MQ][COUPANG] Price/Stock 업데이트 메시지 직접 발행");
                 }
             }
+            // syncToChannelsForOtherChannels(mapping, product, batchId, priceChanged, stockChanged);
 
-            // 2) 타 채널 메시지는 기존 로직 유지
-            syncToChannelsForOtherChannels(mapping, product, batchId, priceChanged, stockChanged);
-            // syncToChannels(mapping, product, batchId, priceChanged, stockChanged);
-
-            log.info("[MessageQueue] 채널별 메시지 전송 완료");
-
-            // 6. 처리 완료 batchId 반환
             log.info("[Finish] 상품/연동정보 업데이트 성공적으로 종료 - batchId={}", batchId);
+
+            /** (7) batchId 반환
+             */
             return batchId;
         } catch (Exception  ex) {
             // 7. 에러 발생 시 실패 상태 기록 및 예외 전파
@@ -313,7 +325,9 @@ public class ProductService {
      * 쿠팡 채널에 대한 동기화(가격/재고) 작업이 필요한지 여부 판단.
      * vendorItemId 또는 sellerProductId 있는지, 가격/재고 변경 플래그 등 조건 조합 가능
      */
-    private boolean needCoupangSync(ProductChannelMapping mapping, boolean priceChanged, boolean stockChanged) {
+    private boolean needCoupangSync(
+            ProductChannelMapping mapping, boolean priceChanged, boolean stockChanged
+    ) {
         boolean hasCoupangId = mapping.getSellerProductId() != null && !mapping.getSellerProductId().isBlank();
         // 만약 vendorItemId까지 체크하려면 아래처럼 (없어도 됨)
         // boolean hasVendorItemId = mapping.getVendorItemId() != null && !mapping.getVendorItemId().isBlank();
@@ -329,8 +343,6 @@ public class ProductService {
             String batchId, boolean priceChanged, boolean stockChanged
     ) {
         Map<String, String> channelIdProps = new HashMap<>();
-        // Coupang은 제외!
-        // if (mapping.getVendorItemId() != null) channelIdProps.put("coupang", mapping.getVendorItemId());
         if (mapping.getOriginProductNo() != null) channelIdProps.put("smartstore", mapping.getOriginProductNo());
         if (mapping.getElevenstId() != null) channelIdProps.put("elevenst", mapping.getElevenstId());
 
@@ -405,7 +417,8 @@ public class ProductService {
             String batchId, String code, String detailsJson, boolean isRetry
     ) {
         String msg = isRetry ? "상품 수정 재시도 요청" : "상품 수정 처리 시작";
-        processStatusService.upsertProcessStatus(batchId, code, detailsJson, "DB SAVE", "PENDING", msg);
+        processStatusService.upsertProcessStatus(batchId, code, detailsJson,
+                "DB SAVE", "PENDING", msg);
     }
 
     /**
@@ -463,7 +476,6 @@ public class ProductService {
         product.setShippingCost(request.getShippingCost());
         product.setDetailsHtml(request.getDetailsHtml());
         product.setMemo(request.getMemo());
-        product.setUpdatedAt(LocalDateTime.now());
     }
 
     /**
@@ -477,49 +489,6 @@ public class ProductService {
         mapping.setSmartstoreId(request.getSmartstoreId());
         mapping.setOriginProductNo(request.getOriginProductNo());
         mapping.setElevenstId(request.getElevenstId());
-        mapping.setUpdatedAt(LocalDateTime.now());
-    }
-
-    /**
-     * 가격 또는 재고 변경 시, 활성화된 채널별로 동기화 메시지 발송.
-     * (쿠팡/스마트스토어/11번가 각각 상태에 따라 처리)
-     */
-    private void syncToChannels(
-            ProductChannelMapping mapping, Product product,
-            String batchId, boolean priceChanged, boolean stockChanged
-    ) {
-        Map<String, String> channelIdProps = new HashMap<>();
-        if (mapping.getVendorItemId() != null) channelIdProps.put("coupang", mapping.getVendorItemId());
-        if (mapping.getOriginProductNo() != null) channelIdProps.put("smartstore", mapping.getOriginProductNo());
-        if (mapping.getElevenstId() != null) channelIdProps.put("elevenst", mapping.getElevenstId());
-
-        log.info("[SYNC] 채널별 동기화 시작 - batchId={}, priceChanged={}, stockChanged={}, channels={}",
-                batchId, priceChanged, stockChanged, channelIdProps.keySet());
-
-        if (priceChanged) {
-            channelIdProps.forEach((channel, id) -> {
-                log.info("[SYNC][PRICE] {} -> id={}, productCode={}, batchId={}",
-                        channel, id, product.getCode(), batchId);
-
-                if (id != null) {
-                    messageQueueService.publishPriceUpdate(channel, product, mapping, batchId);
-                    log.debug("[MQ][PRICE] 메시지 발송 완료 - channel={}, id={}, batchId={}", channel, id, batchId);
-
-                }
-            });
-        }
-        if (stockChanged) {
-            channelIdProps.forEach((channel, id) -> {
-                log.info("[SYNC][STOCK] {} -> id={}, productCode={}, batchId={}", channel, id, product.getCode(), batchId);
-                if (id != null) {
-                    messageQueueService.publishStockUpdate(channel, product, mapping, batchId);
-                    log.debug("[MQ][STOCK] 메시지 발송 완료 - channel={}, id={}, batchId={}", channel, id, batchId);
-
-                }
-            });
-        }
-
-        log.info("[SYNC] 채널별 동기화 종료 - batchId={}", batchId);
     }
 
     /**

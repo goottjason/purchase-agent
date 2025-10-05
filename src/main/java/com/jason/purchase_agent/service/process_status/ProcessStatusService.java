@@ -5,6 +5,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.jason.purchase_agent.entity.ProcessStatus;
 import com.jason.purchase_agent.repository.jpa.ProcessStatusRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,6 +21,7 @@ import static com.jason.purchase_agent.util.converter.StringListConverter.object
 /**
  * 현황 테이블(배치/상품별) 비즈니스 처리 서비스
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ProcessStatusService {
@@ -66,31 +68,47 @@ public class ProcessStatusService {
     public void mergeChannelResult(
             String batchId, String productCode, String channel, Map<String, Object> channelResult
     ) {
-        // select for update or with optimistic @Version
-        ProcessStatus ps = psr.findByBatchIdAndProductCode(batchId, productCode)
-                .orElseThrow(() -> new IllegalArgumentException("해당 상태이력 없음"));
+        log.info("[ProcessStatus][Merge] 호출 - batchId={}, productCode={}, channel={}, step=CHANNEL_UPDATE", batchId, productCode, channel);
 
-        // message JSON 파싱 (혹시 11번가 xml을 json으로 바꿔서 보내져야하는데 그 부분 체크할 것
+        ProcessStatus ps = psr.findByBatchIdAndProductCode(batchId, productCode)
+                .orElseThrow(() -> {
+                    log.error("[ProcessStatus][Merge] 이력 찾기 실패 - batchId={}, productCode={}", batchId, productCode);
+                    return new IllegalArgumentException("해당 상태이력 없음");
+                });
+
         Map<String, Object> msgJson = null;
         try {
             msgJson = ps.getMessage() != null
                     ? objectMapper.readValue(ps.getMessage(), new TypeReference<Map<String,Object>>() {})
                     : new HashMap<>();
+            log.debug("[ProcessStatus][Merge] 기존 message 파싱 성공 - msgJson={}", msgJson);
         } catch (JsonProcessingException e) {
+            log.error("[ProcessStatus][Merge] message JSON 파싱 실패 - {}", e.getMessage(), e);
             throw new RuntimeException(e);
         }
+
         msgJson.put(channel, channelResult);
-        // 다시 JSON 문자열로 저장
+        log.debug("[ProcessStatus][Merge] 채널 결과 추가 - channel={}, channelResult={}", channel, channelResult);
+
         try {
-            ps.setMessage(objectMapper.writeValueAsString(msgJson));
+            String mergedMsgStr = objectMapper.writeValueAsString(msgJson);
+            ps.setMessage(mergedMsgStr);
+            log.info("[ProcessStatus][Merge] message 병합 및 저장 준비 - mergedMsg={}", mergedMsgStr);
         } catch (JsonProcessingException e) {
+            log.error("[ProcessStatus][Merge] message JSON serialize 실패 - {}", e.getMessage(), e);
             throw new RuntimeException(e);
         }
+
         ps.setStep("CHANNEL_UPDATE");
-        // 전체 채널 성공/실패 summary도 판단 가능(추가적 요구 시)
-        ps.setStatus(msgJson.values().stream()
-                .allMatch(m -> Boolean.TRUE.equals(((Map)m).get("success"))) ? "SUCCESS" : "FAIL");
+
+        boolean allSuccess = msgJson.values().stream()
+                .allMatch(m -> Boolean.TRUE.equals(((Map)m).get("success")));
+        ps.setStatus(allSuccess ? "SUCCESS" : "FAIL");
+        log.info("[ProcessStatus][Merge] status 계산, allSuccess={}, 최종 status={}", allSuccess, ps.getStatus());
+
         psr.save(ps);
+        log.info("[ProcessStatus][Merge] 최종 이력 저장 완료 - batchId={}, productCode={}, step={}, status={}", batchId, productCode, ps.getStep(), ps.getStatus());
     }
+
 
 }
