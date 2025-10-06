@@ -1,6 +1,7 @@
 package com.jason.purchase_agent.external.elevenst;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.dataformat.xml.XmlMapper;
 import com.jason.purchase_agent.dto.products.PriceUpdateMessage;
 import com.jason.purchase_agent.dto.products.StockUpdateMessage;
 import com.jason.purchase_agent.service.process_status.ProcessStatusService;
@@ -12,8 +13,6 @@ import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
 import java.util.Map;
-
-import static com.jason.purchase_agent.util.converter.StringListConverter.objectMapper;
 
 @Slf4j
 @Service
@@ -30,23 +29,31 @@ public class ElevenstUpdateConsumer {
             log.info("[ElevenstAPI][Price] 가격 변경 API 호출 시작 - channelId={}, salePrice={}", msg.getChannelId(), msg.getSalePrice());
 
             String responseXml = elevenstApiService.updatePrice(msg.getChannelId(), msg.getSalePrice());
-            JsonNode root = objectMapper.readTree(responseXml);
 
-            String code = root.path("code").asText(""); // "SUCCESS" or error code or empty
-            String returnedMessage = root.path("message").asText("상세 메시지 없음");
-            boolean findSuccess = "SUCCESS".equalsIgnoreCase(code) || code.isEmpty();
+            XmlMapper xmlMapper = new XmlMapper();
+            Map<String, Object> xmlResult = xmlMapper.readValue(responseXml, Map.class);
+
+            String code = String.valueOf(xmlResult.getOrDefault("resultCode", ""));
+            String returnedMessage = String.valueOf(xmlResult.getOrDefault("message", "상세 메시지 없음"));
+            String normalizedMessage = returnedMessage.trim();
+
+            // 성공 조건: resultCode == 200 || (가격 동일시 보통 "동일한 가격"류 메시지가 포함)
+            boolean findSuccess = "200".equals(code)
+                    || normalizedMessage.contains("동일") // ex: "요청하신 가격으로 이미 설정되어 있습니다."
+                    || normalizedMessage.contains("변경된 값이 없습니다.") // 11번가의 특유 메시지
+                    || normalizedMessage.contains("같은 가격"); // 기타 실질 성공 메시지 패턴 추가 가능
 
             Map<String, Object> channelResult = new HashMap<>();
-            // code가 없거나 SUCCESS면 성공!
             if (findSuccess) {
                 channelResult.put("status", "SUCCESS");
-                channelResult.put("message", "가격 변경을 완료했습니다.");
+                channelResult.put("message", String.format("가격변경완료(가격: %,d원, ID: %s)", msg.getSalePrice(), msg.getChannelId()));
             } else {
                 channelResult.put("status", "FAIL");
                 channelResult.put("message", code + " : " + returnedMessage);
             }
 
-            log.info("[Elevenst][PriceUpdate] 상태 병합 시작 - batchId={}, productCode={}, status={}", msg.getBatchId(), msg.getProductCode(), channelResult.get("status"));
+            log.info("[Elevenst][PriceUpdate] 상태 병합 시작 - batchId={}, productCode={}, status={}",
+                    msg.getBatchId(), msg.getProductCode(), channelResult.get("status"));
 
             processStatusService.mergeChannelResult(
                     msg.getBatchId(), msg.getProductCode(), "elevenst", channelResult
@@ -78,23 +85,32 @@ public class ElevenstUpdateConsumer {
         try {
             log.info("[ElevenstAPI][Stock] 재고 변경 API 호출 시작 - channelId={}, stock={}", msg.getChannelId(), msg.getStock());
 
-            String responseJson = elevenstApiService.updateStock(msg.getChannelId(), msg.getStock());
-            JsonNode root = objectMapper.readTree(responseJson);
+            String responseXml = elevenstApiService.updateStock(msg.getChannelId(), msg.getStock());
+            XmlMapper xmlMapper = new XmlMapper();
+            Map<String, Object> xmlResult = xmlMapper.readValue(responseXml, Map.class);
 
-            String code = root.path("code").asText(""); // "SUCCESS" or error code or empty
-            String returnedMessage = root.path("message").asText("상세 메시지 없음");
-            boolean findSuccess = "SUCCESS".equalsIgnoreCase(code) || code.isEmpty();
+            String code = String.valueOf(xmlResult.getOrDefault("resultCode", ""));
+            String returnedMessage = String.valueOf(xmlResult.getOrDefault("message", "상세 메시지 없음"));
+            String normalizedMessage = returnedMessage.trim();
+
+            // 성공: resultCode == 200 또는, "판매중지", "이미 판매중", "해제" 등 11번가의 실질적 성공 메시지도 포함
+            boolean findSuccess = "200".equals(code)
+                    || normalizedMessage.contains("판매중지")      // 예시: "판매중지 상품만 판매중지해제 가능"
+                    || normalizedMessage.contains("이미 판매중")  // 예시: "이미 판매중인 상품입니다"
+                    || normalizedMessage.contains("이미 상태")    // 예시: "이미 판매중인 상태입니다"
+                    || normalizedMessage.contains("해제");        // 예시: "판매중지 해제" 등
 
             Map<String, Object> channelResult = new HashMap<>();
             if (findSuccess) {
                 channelResult.put("status", "SUCCESS");
-                channelResult.put("message", "재고 변경을 완료했습니다.");
+                channelResult.put("message", String.format("재고변경완료(재고: %,d개, ID: %s)", msg.getStock(), msg.getChannelId()));
             } else {
                 channelResult.put("status", "FAIL");
                 channelResult.put("message", code + " : " + returnedMessage);
             }
 
-            log.info("[Elevenst][StockUpdate] 상태 병합 시작 - batchId={}, productCode={}, status={}", msg.getBatchId(), msg.getProductCode(), channelResult.get("status"));
+            log.info("[Elevenst][StockUpdate] 상태 병합 시작 - batchId={}, productCode={}, status={}",
+                    msg.getBatchId(), msg.getProductCode(), channelResult.get("status"));
 
             processStatusService.mergeChannelResult(
                     msg.getBatchId(), msg.getProductCode(), "elevenst", channelResult
@@ -105,7 +121,8 @@ public class ElevenstUpdateConsumer {
             log.debug("[MQ][Elevenst][StockUpdate] 처리 후 Thread.sleep(100ms)");
 
         } catch (Exception e) {
-            log.error("[MQ][Elevenst][StockUpdate] 처리 중 예외! - batchId={}, productCode={}, 원인={}", msg.getBatchId(), msg.getProductCode(), e.getMessage(), e);
+            log.error("[MQ][Elevenst][StockUpdate] 처리 중 예외! - batchId={}, productCode={}, 원인={}",
+                    msg.getBatchId(), msg.getProductCode(), e.getMessage(), e);
 
             Map<String, Object> channelResult = new HashMap<>();
             channelResult.put("status", "FAIL");
@@ -118,5 +135,6 @@ public class ElevenstUpdateConsumer {
             throw new AmqpRejectAndDontRequeueException("MQ 폐기(파싱 실패)", e);
         }
     }
+
 
 }

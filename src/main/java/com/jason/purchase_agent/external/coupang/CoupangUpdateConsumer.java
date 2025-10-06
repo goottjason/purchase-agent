@@ -27,18 +27,21 @@ public class CoupangUpdateConsumer {
     public void handlePriceUpdate(PriceUpdateMessage msg) {
         log.info("[MQ][PriceUpdate] 메시지 수신 - {}", msg);
         try {
-            log.info("[MQ][PriceUpdate] API 호출 시작 - channelId={}, salePrice={}", msg.getChannelId(), msg.getSalePrice());
+            log.info("[MQ][PriceUpdate] API 호출 시작 - channelId={}, salePrice={}",
+                    msg.getChannelId(), msg.getSalePrice());
             String responseJson = coupangApiService.updatePrice(msg.getChannelId(), msg.getSalePrice());
             JsonNode root = objectMapper.readTree(responseJson);
 
             String code = root.path("code").asText(""); // string "SUCCESS" or error code
-            String returnedMessage = root.path("message").asText("상세 메시지 없음");
+            // String returnedMessage = root.path("message").asText("상세 메시지 없음");
+            String message = String.format("가격변경완료(가격: %,d원, ID: %s)",
+                    msg.getSalePrice(), msg.getChannelId());
             boolean findSuccess = "SUCCESS".equalsIgnoreCase(code);
 
             // 채널 결과 map 준비
             Map<String, Object> channelResult = new HashMap<>();
             channelResult.put("status", "SUCCESS");
-            channelResult.put("message", returnedMessage);
+            channelResult.put("message", message);
 
             log.info("[MQ][PriceUpdate] 결과 mergeChannelResult 호출 - batchId={}, productCode={}, success={}",
                     msg.getBatchId(), msg.getProductCode(), findSuccess);
@@ -76,13 +79,16 @@ public class CoupangUpdateConsumer {
             JsonNode root = objectMapper.readTree(responseJson);
 
             String code = root.path("code").asText(""); // "SUCCESS" or error code
-            String returnedMessage = root.path("message").asText("상세 메시지 없음");
+            // String returnedMessage = root.path("message").asText("상세 메시지 없음");
+            String message = String.format("재고변경완료(재고: %d개, ID: %s)",
+                    msg.getStock(), msg.getChannelId());
             boolean findSuccess = "SUCCESS".equalsIgnoreCase(code);
+
 
             // 채널 결과 map 준비
             Map<String, Object> channelResult = new HashMap<>();
             channelResult.put("status", "SUCCESS");
-            channelResult.put("message", returnedMessage);
+            channelResult.put("message", message);
 
             log.info("[MQ][StockUpdate] 결과 mergeChannelResult 호출 - batchId={}, productCode={}, success={}",
                     msg.getBatchId(), msg.getProductCode(), findSuccess);

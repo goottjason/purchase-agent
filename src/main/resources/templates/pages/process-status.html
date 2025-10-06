@@ -11,28 +11,23 @@
 <div layout:fragment="content">
   <style>
     .channel-results-row {
-      display: flex;
-      gap: 10px; /* 각 메시지 박스 사이 여백 */
-      justify-content: flex-start;
-      align-items: stretch;
+      display: grid;
+      grid-template-columns: repeat(3, 220px); /* 고정 크기 */
+      gap: 8px;
+      margin-bottom: 6px;
+      justify-content: center; /* 가로 가운데 정렬! */
     }
 
     .channel-result {
-      flex: 0 1 220px;
-      background: #e9f7fa;
-      border-radius: 6px;
-      border-left: 4px solid #10b981;
-      color: #059669;
-      margin-bottom: 0;
-      padding: 12px 16px 8px 10px;
+      width: 220px; /* 고정 너비 */
+      min-height: 60px; /* 고정 최소 높이 */
+      padding: 10px 12px 8px 10px;
+      border-radius: 8px;
+      border-left: 4px solid;
       box-sizing: border-box;
-      min-width: 150px;
-    }
-    .channel-results {
+      word-break: break-all;
       font-size: 12px;
-      line-height: 1.4;
     }
-
 
     .channel-result.success {
       background-color: #f0f9ff;
@@ -58,11 +53,69 @@
       font-family: monospace;
       color: #6b7280;
     }
+
+    .retry-btn, #batch-upload-retry {
+      border: none;
+      background: #2563eb;
+      color: #fff;
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: background 0.2s;
+      white-space: nowrap;
+    }
+
+    .retry-btn:hover, #batch-upload-retry:hover {
+      background: #1551b8;
+    }
+
+    .retry-btn:active, #batch-upload-retry:active {
+      background: #193fa1;
+    }
+
+    .delete-btn {
+      border: none;
+      background: #ef4444;
+      color: #fff;
+      border-radius: 4px;
+      padding: 4px 8px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .delete-btn:hover {
+      background: #dc2626;
+    }
+
+    /* 테이블 고정 크기 설정 */
+    .card-body {
+      padding: 1.5rem;
+      overflow-x: auto;
+    }
+
+    #statusTable {
+      width: 1200px; /* 고정 테이블 너비 */
+      table-layout: fixed;
+      margin: 0 auto;
+    }
+
+    /* 텍스트 말줄임표 */
+    .batch-id-short {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    #statusTable td, #statusTable th {
+      text-align: center;      /* 가로 가운데 정렬 */
+      vertical-align: middle;  /* 세로 가운데 정렬 */
+    }
   </style>
   <div class="container-fluid">
 
     <!-- Page Heading -->
-    <div class="d-sm-flex align-items-center justify-content-between mb-4" style="max-width: 1200px; margin: 0 auto;">
+    <div class="d-sm-flex align-items-center justify-content-between mb-4" style="max-width: 1500px; margin: 0 auto;">
       <h1 class="h3 mb-0 text-gray-800">상품 등록 현황</h1>
     </div>
 
@@ -74,31 +127,27 @@
       <div class="card-body">
         <table id="statusTable" class="table table-bordered">
           <colgroup>
-            <col style="width: 5%;">   <!-- 체크박스 -->
-            <col style="width: 15%;">  <!-- 배치ID -->
-            <col style="width: 12%;">  <!-- 코드 -->
-            <col style="width: 8%;">   <!-- 단계 -->
-            <col style="width: 8%;">   <!-- 상태 -->
-            <col style="width: 47%;">  <!-- 메시지 -->
-            <col style="width: 5%;">   <!-- 재시도 -->
+            <col style="width: 120px;">  <!-- 배치ID (그대로) -->
+            <col style="width: 150px;">  <!-- 코드 (그대로) -->
+            <col style="width: 180px;">  <!-- 단계 (+30px) -->
+            <col style="width: 120px;">  <!-- 상태 (+20px) -->
+            <col style="width: 720px;">  <!-- 메시지 (+150px) -->
+            <col style="width: 130px;">  <!-- 액션 (그대로) -->
           </colgroup>
           <thead>
           <tr>
-            <th class="text-center"><!-- 체크박스 --></th>
             <th class="text-center">배치ID</th>
             <th class="text-center">코드</th>
             <th class="text-center">단계</th>
             <th class="text-center">상태</th>
             <th class="text-center">메시지</th>
-            <th class="text-center">재시도</th>
+            <th class="text-center">액션</th>
           </tr>
           </thead>
           <tbody></tbody>
         </table>
-        <button id="batch-upload-retry" style="display:none">[3단계 이미지 일괄 재시도]</button>
       </div>
     </div>
-
   </div> <!-- End Container Fluid -->
 </div>
 

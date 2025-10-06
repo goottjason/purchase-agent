@@ -27,7 +27,8 @@ public class SmartstoreUpdateConsumer {
         log.info("[MQ][Smartstore][PriceUpdate] 메시지 수신 - {}", msg);
 
         try {
-            log.info("[SmartstoreAPI][Price] 가격 변경 API 호출 시작 - channelId={}, salePrice={}", msg.getChannelId(), msg.getSalePrice());
+            log.info("[SmartstoreAPI][Price] 가격 변경 API 호출 시작 - channelId={}, salePrice={}",
+                    msg.getChannelId(), msg.getSalePrice());
 
             String responseJson = smartstoreApiService.updatePrice(msg.getChannelId(), msg.getSalePrice());
             JsonNode root = objectMapper.readTree(responseJson);
@@ -43,7 +44,8 @@ public class SmartstoreUpdateConsumer {
             } else {
                 // 성공 케이스 (code 없음)
                 status = "SUCCESS";
-                returnedMessage = "가격 변경을 완료했습니다.";
+                returnedMessage = String.format("가격변경완료(가격: %,d원, ID: %s)",
+                        msg.getSalePrice(), msg.getChannelId());
             }
 
             Map<String, Object> channelResult = new HashMap<>();
@@ -96,7 +98,8 @@ public class SmartstoreUpdateConsumer {
             } else {
                 // 성공 케이스
                 status = "SUCCESS";
-                returnedMessage = "재고 변경을 완료했습니다.";
+                returnedMessage = String.format("재고변경완료(재고: %d개, ID: %s)",
+                        msg.getStock(), msg.getChannelId());;
             }
 
             Map<String, Object> channelResult = new HashMap<>();

@@ -42,7 +42,13 @@ public class SmartstoreApiService {
             log.debug("[SmartstoreAPI][Price] 상품 파싱 결과: {}", getResponseMap);
 
             Map<String, Object> originProduct = (Map<String, Object>) getResponseMap.get("originProduct");
+            // log.info(originProduct.get("statusType"));
+            // originProduct.put("statusType", originProduct.get("statusType")); // 그대로 넣고 다시 보내보기
             originProduct.put("salePrice", salePrice);
+            if ("OUTOFSTOCK".equals(originProduct.get("statusType"))) {
+                originProduct.put("statusType", "SALE");
+                originProduct.put("stockQuantity", 0); // 0이면 statusType 무시됨
+            }
 
             Map<String, Object> body = new HashMap<>();
             body.put("originProduct", originProduct);
@@ -76,6 +82,9 @@ public class SmartstoreApiService {
             log.debug("[SmartstoreAPI][Stock] 상품 파싱 결과: {}", getResponseMap);
 
             Map<String, Object> originProduct = (Map<String, Object>) getResponseMap.get("originProduct");
+            if ("OUTOFSTOCK".equals(originProduct.get("statusType"))) {
+                originProduct.put("statusType", "SALE");
+            }
             originProduct.put("stockQuantity", stock);
 
             Map<String, Object> body = new HashMap<>();
