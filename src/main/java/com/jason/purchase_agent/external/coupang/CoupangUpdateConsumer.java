@@ -1,5 +1,6 @@
 package com.jason.purchase_agent.external.coupang;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.jason.purchase_agent.dto.products.PriceUpdateMessage;
 import com.jason.purchase_agent.dto.products.StockUpdateMessage;
 import com.jason.purchase_agent.service.process_status.ProcessStatusService;
@@ -9,7 +10,11 @@ import org.springframework.amqp.AmqpRejectAndDontRequeueException;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Service;
 
+import java.util.HashMap;
 import java.util.Map;
+
+import static com.jason.purchase_agent.util.converter.StringListConverter.objectMapper;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -23,50 +28,81 @@ public class CoupangUpdateConsumer {
         log.info("[MQ][PriceUpdate] 메시지 수신 - {}", msg);
         try {
             log.info("[MQ][PriceUpdate] API 호출 시작 - channelId={}, salePrice={}", msg.getChannelId(), msg.getSalePrice());
-            Map<String, Object> result = coupangApiService.updatePrice(msg.getChannelId(), msg.getSalePrice());
-            log.info("[MQ][PriceUpdate] API응답 - result={}", result);
+            String responseJson = coupangApiService.updatePrice(msg.getChannelId(), msg.getSalePrice());
+            JsonNode root = objectMapper.readTree(responseJson);
 
-            log.info("[MQ][PriceUpdate] 결과 병합 시작 - batchId={}, productCode={}", msg.getBatchId(), msg.getProductCode());
+            String code = root.path("code").asText(""); // string "SUCCESS" or error code
+            String returnedMessage = root.path("message").asText("상세 메시지 없음");
+            boolean findSuccess = "SUCCESS".equalsIgnoreCase(code);
 
-            // 병합 전략 적용 (트랜잭션, select-for-update 등, 서비스에서 처리!)
+            // 채널 결과 map 준비
+            Map<String, Object> channelResult = new HashMap<>();
+            channelResult.put("status", "SUCCESS");
+            channelResult.put("message", returnedMessage);
+
+            log.info("[MQ][PriceUpdate] 결과 mergeChannelResult 호출 - batchId={}, productCode={}, success={}",
+                    msg.getBatchId(), msg.getProductCode(), findSuccess);
+
             processStatusService.mergeChannelResult(
-                    msg.getBatchId(), msg.getProductCode(), "coupang", result
+                    msg.getBatchId(), msg.getProductCode(), "coupang", channelResult
             );
-            log.debug("[MQ][PriceUpdate] 결과 병합 완료");
-
-            try { Thread.sleep(100); } catch (InterruptedException ignored) {}
-            log.debug("[MQ][PriceUpdate] 처리 후 대기/sleep 완료");
 
         } catch (Exception e) {
+
+            log.error("[MQ][PriceUpdate] 처리 중 예외! - batchId={}, productCode={}, 원인={}",
+                    msg.getBatchId(), msg.getProductCode(), e.getMessage(), e);
+
+            Map<String, Object> channelResult = new HashMap<>();
+            channelResult.put("status", "FAIL");
+            channelResult.put("message", "[예외] " + e.getMessage());
+
+            processStatusService.mergeChannelResult(
+                    msg.getBatchId(), msg.getProductCode(), "coupang", channelResult
+            );
+
             log.error("[MQ][PriceUpdate] 메시지 폐기 - {} | 원인: {}", msg, e.getMessage(), e);
             throw new AmqpRejectAndDontRequeueException("MQ 폐기(파싱 실패)", e);
         }
-
-
     }
 
     @RabbitListener(queues = "stock-update-coupang")
     public void handleStockUpdate(StockUpdateMessage msg) {
+
         log.info("[MQ][StockUpdate] 메시지 수신 - {}", msg);
 
         try {
             log.info("[MQ][StockUpdate] API 호출 시작 - channelId={}, stock={}", msg.getChannelId(), msg.getStock());
+            String responseJson = coupangApiService.updateStock(msg.getChannelId(), msg.getStock());
+            JsonNode root = objectMapper.readTree(responseJson);
 
-            Map<String, Object> result = coupangApiService.updateStock(msg.getChannelId(), msg.getStock());
-            log.info("[MQ][StockUpdate] API응답 - result={}", result);
+            String code = root.path("code").asText(""); // "SUCCESS" or error code
+            String returnedMessage = root.path("message").asText("상세 메시지 없음");
+            boolean findSuccess = "SUCCESS".equalsIgnoreCase(code);
 
-            // 병합 전략 적용 (트랜잭션, select-for-update 등, 서비스에서 처리!)
-            log.info("[MQ][StockUpdate] 결과 병합 시작 - batchId={}, productCode={}", msg.getBatchId(), msg.getProductCode());
+            // 채널 결과 map 준비
+            Map<String, Object> channelResult = new HashMap<>();
+            channelResult.put("status", "SUCCESS");
+            channelResult.put("message", returnedMessage);
+
+            log.info("[MQ][StockUpdate] 결과 mergeChannelResult 호출 - batchId={}, productCode={}, success={}",
+                    msg.getBatchId(), msg.getProductCode(), findSuccess);
 
             processStatusService.mergeChannelResult(
-                    msg.getBatchId(), msg.getProductCode(), "coupang", result
+                    msg.getBatchId(), msg.getProductCode(), "coupang", channelResult
             );
-            log.debug("[MQ][StockUpdate] 결과 병합 완료");
-
-            try { Thread.sleep(100); } catch (InterruptedException ignored) {}
-            log.debug("[MQ][StockUpdate] 처리 후 대기/sleep 완료");
 
         } catch (Exception e) {
+            log.error("[MQ][StockUpdate] 처리 중 예외! - batchId={}, productCode={}, 원인={}",
+                    msg.getBatchId(), msg.getProductCode(), e.getMessage(), e);
+
+            Map<String, Object> channelResult = new HashMap<>();
+            channelResult.put("status", "FAIL");
+            channelResult.put("message", "[예외] " + e.getMessage());
+
+            processStatusService.mergeChannelResult(
+                    msg.getBatchId(), msg.getProductCode(), "coupang", channelResult
+            );
+
             log.error("[MQ][StockUpdate] 메시지 폐기 - {} | 원인: {}", msg, e.getMessage(), e);
             throw new AmqpRejectAndDontRequeueException("MQ 폐기(파싱 실패)", e);
         }

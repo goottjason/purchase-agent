@@ -10,10 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import static com.jason.purchase_agent.util.converter.StringListConverter.objectMapper;
@@ -64,6 +61,20 @@ public class ProcessStatusService {
         }
     }
 
+    /**
+     * 채널별 결과를 누적 리스트(List)로 담는 mergeChannelResult 구현.
+     *
+     * 예시) DB에 저장되는 message 컬럼(최종 형태)
+     * {
+     *   "coupang": [
+     *     { "type": "price", "success": true, "message": "가격 변경 완료" },
+     *     { "type": "stock", "success": true, "message": "재고 변경 완료" }
+     *   ],
+     *   "smartstore": [
+     *     { "type": "price", "success": false, "message": "API 에러..." }
+     *   ]
+     * }
+     */
     @Transactional
     public void mergeChannelResult(
             String batchId, String productCode, String channel, Map<String, Object> channelResult
@@ -78,17 +89,30 @@ public class ProcessStatusService {
 
         Map<String, Object> msgJson = null;
         try {
-            msgJson = ps.getMessage() != null
-                    ? objectMapper.readValue(ps.getMessage(), new TypeReference<Map<String,Object>>() {})
+            String msgString = ps.getMessage();
+            // message 컬럼이 "{}"이거나 빈 값이면 빈 Map, JSON이면 파싱
+            msgJson = (msgString != null && msgString.trim().startsWith("{"))
+                    ? objectMapper.readValue(msgString, new TypeReference<Map<String,Object>>() {})
                     : new HashMap<>();
             log.debug("[ProcessStatus][Merge] 기존 message 파싱 성공 - msgJson={}", msgJson);
         } catch (JsonProcessingException e) {
-            log.error("[ProcessStatus][Merge] message JSON 파싱 실패 - {}", e.getMessage(), e);
-            throw new RuntimeException(e);
+            log.warn("[ProcessStatus][Merge] message JSON 파싱 실패, 빈 map으로 대체 - {}", e.getMessage());
+            msgJson = new HashMap<>();
         }
 
-        msgJson.put(channel, channelResult);
-        log.debug("[ProcessStatus][Merge] 채널 결과 추가 - channel={}, channelResult={}", channel, channelResult);
+        /*
+         * 누적 구조로 각 채널은 리스트(List<Map<String,Object>>)
+         * 기존에 coupang => list가 없으면 새로 만들고, 있으면 꺼내서 append
+         * 반드시 channelResult에 type ("price"/"stock" 등) 필드 포함!
+         */
+        List<Map<String, Object>> resultList = (List<Map<String, Object>>) msgJson.get(channel);
+        if (resultList == null) {
+            resultList = new ArrayList<>();
+            msgJson.put(channel, resultList);
+        }
+        resultList.add(channelResult);
+
+        log.debug("[ProcessStatus][Merge] 채널 결과 리스트 추가 - channel={}, channelResult={}", channel, channelResult);
 
         try {
             String mergedMsgStr = objectMapper.writeValueAsString(msgJson);
@@ -101,14 +125,17 @@ public class ProcessStatusService {
 
         ps.setStep("CHANNEL_UPDATE");
 
+        // 전체 채널의 price/stock update가 모두 success일 때만 SUCCESS, 아니면 FAIL
         boolean allSuccess = msgJson.values().stream()
-                .allMatch(m -> Boolean.TRUE.equals(((Map)m).get("success")));
+                .flatMap(val -> ((List<Map<String,Object>>) val).stream())
+                .allMatch(item -> Boolean.TRUE.equals(item.get("success")));
         ps.setStatus(allSuccess ? "SUCCESS" : "FAIL");
         log.info("[ProcessStatus][Merge] status 계산, allSuccess={}, 최종 status={}", allSuccess, ps.getStatus());
 
         psr.save(ps);
         log.info("[ProcessStatus][Merge] 최종 이력 저장 완료 - batchId={}, productCode={}, step={}, status={}", batchId, productCode, ps.getStep(), ps.getStatus());
     }
+
 
 
 }

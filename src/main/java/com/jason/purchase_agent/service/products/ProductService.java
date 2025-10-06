@@ -303,7 +303,7 @@ public class ProductService {
                     log.info("[MQ][COUPANG] Price/Stock 업데이트 메시지 직접 발행");
                 }
             }
-            // syncToChannelsForOtherChannels(mapping, product, batchId, priceChanged, stockChanged);
+            syncToChannelsForOtherChannels(mapping, product, batchId, priceChanged, stockChanged);
 
             log.info("[Finish] 상품/연동정보 업데이트 성공적으로 종료 - batchId={}", batchId);
 

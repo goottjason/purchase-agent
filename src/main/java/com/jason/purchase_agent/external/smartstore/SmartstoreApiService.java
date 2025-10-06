@@ -24,20 +24,26 @@ import static com.jason.purchase_agent.util.downloader.ImageDownloader.findProdu
 @RequiredArgsConstructor
 public class SmartstoreApiService {
 
-    public Map<String, Object> updatePrice(String originProductNo, Integer salePrice) {
-        Map<String, Object> result = new HashMap<>();
-        log.info("[SmartstoreAPI][Price] 가격 변경 요청 시작 - originProductNo={}, salePrice={}", originProductNo, salePrice);
+    public String updatePrice(
+            String originProductNo, Integer salePrice
+    ) {
+        // Map<String, Object> result = new HashMap<>();
+        log.info("[SmartstoreAPI][Price] 가격 변경 요청 - originProductNo={}, salePrice={}",
+                originProductNo, salePrice);
+
         try {
             String getPath = String.format("/v2/products/origin-products/%s", originProductNo);
             log.debug("[SmartstoreAPI][Price] 상품 조회 경로: {}", getPath);
             String getResponseJson = SmartstoreApiUtil.simpleHttpExecute("GET", getPath, null);
             log.debug("[SmartstoreAPI][Price] 상품 조회 응답: {}", getResponseJson);
 
-            Map<String, Object> map = objectMapper.readValue(getResponseJson, new TypeReference<Map<String,Object>>() {});
-            log.debug("[SmartstoreAPI][Price] 상품 파싱 결과: {}", map);
+            Map<String, Object> getResponseMap = objectMapper.readValue(
+                    getResponseJson, new TypeReference<Map<String,Object>>() {});
+            log.debug("[SmartstoreAPI][Price] 상품 파싱 결과: {}", getResponseMap);
 
-            Map<String, Object> originProduct = (Map<String, Object>) map.get("originProduct");
+            Map<String, Object> originProduct = (Map<String, Object>) getResponseMap.get("originProduct");
             originProduct.put("salePrice", salePrice);
+
             Map<String, Object> body = new HashMap<>();
             body.put("originProduct", originProduct);
             log.debug("[SmartstoreAPI][Price] 상품 수정 데이터: {}", body);
@@ -47,73 +53,49 @@ public class SmartstoreApiService {
             String putResponseJson = SmartstoreApiUtil.simpleHttpExecute("PUT", putPath, body);
             log.debug("[SmartstoreAPI][Price] 가격 변경 응답: {}", putResponseJson);
 
-            Map<String, Object> putResult = objectMapper.readValue(putResponseJson, new TypeReference<Map<String,Object>>() {});
-            log.debug("[SmartstoreAPI][Price] 가격 변경 파싱 결과: {}", putResult);
-
-            if (putResult.containsKey("error")) {
-                Map<String, Object> error = (Map<String, Object>) putResult.get("error");
-                log.warn("[SmartstoreAPI][Price] 에러 응답 - {}", error);
-                result.put("success", false);
-                result.put("errorCode", error.get("code"));
-                result.put("errorMsg", error.get("message"));
-            } else {
-                log.info("[SmartstoreAPI][Price] 가격 변경 성공 - {}", putResult);
-                result.put("success", true);
-                result.put("data", putResult);
-            }
+            return putResponseJson;
         } catch (Exception e) {
-            log.error("[SmartstoreAPI][Price] 가격 변경 장애 - originProductNo={}, salePrice={}, 원인={}", originProductNo, salePrice, e.getMessage(), e);
-            result.put("success", false);
-            result.put("errorCode", "SYSTEM");
-            result.put("errorMsg", e.getMessage());
+            log.error("[SmartstoreAPI][Price] 가격 변경 장애 - originProductNo={}, salePrice={}, 원인={}",
+                    originProductNo, salePrice, e.getMessage(), e);
+            return "{}";
         }
-        return result;
     }
 
-    public Map<String, Object> updateStock(String originProductNo, Integer stock) {
-        Map<String, Object> result = new HashMap<>();
-        log.info("[SmartstoreAPI][Stock] 재고 변경 요청 시작 - originProductNo={}, stock={}", originProductNo, stock);
+    public String updateStock(String originProductNo, Integer stock) {
+        log.info("[SmartstoreAPI][Stock] 재고 변경 요청 - originProductNo={}, stock={}", originProductNo, stock);
+
         try {
+            // 1. 상품 조회(기존 정보 가져오기)
             String getPath = String.format("/v2/products/origin-products/%s", originProductNo);
             log.debug("[SmartstoreAPI][Stock] 상품 조회 경로: {}", getPath);
             String getResponseJson = SmartstoreApiUtil.simpleHttpExecute("GET", getPath, null);
             log.debug("[SmartstoreAPI][Stock] 상품 조회 응답: {}", getResponseJson);
 
-            Map<String, Object> map = objectMapper.readValue(getResponseJson, new TypeReference<Map<String,Object>>() {});
-            log.debug("[SmartstoreAPI][Stock] 상품 파싱 결과: {}", map);
+            Map<String, Object> getResponseMap = objectMapper.readValue(
+                    getResponseJson, new TypeReference<Map<String,Object>>() {});
+            log.debug("[SmartstoreAPI][Stock] 상품 파싱 결과: {}", getResponseMap);
 
-            Map<String, Object> originProduct = (Map<String, Object>) map.get("originProduct");
+            Map<String, Object> originProduct = (Map<String, Object>) getResponseMap.get("originProduct");
             originProduct.put("stockQuantity", stock);
+
             Map<String, Object> body = new HashMap<>();
             body.put("originProduct", originProduct);
             log.debug("[SmartstoreAPI][Stock] 상품 수정 데이터: {}", body);
 
+            // 2. 수정(재고 변경) API 호출
             String putPath = String.format("/v2/products/origin-products/%s", originProductNo);
             log.debug("[SmartstoreAPI][Stock] 재고 변경 API 경로: {}", putPath);
             String putResponseJson = SmartstoreApiUtil.simpleHttpExecute("PUT", putPath, body);
             log.debug("[SmartstoreAPI][Stock] 재고 변경 응답: {}", putResponseJson);
 
-            Map<String, Object> putResult = objectMapper.readValue(putResponseJson, new TypeReference<Map<String,Object>>() {});
-            log.debug("[SmartstoreAPI][Stock] 재고 변경 파싱 결과: {}", putResult);
+            // 3. 응답 그대로 반환
+            return putResponseJson;
 
-            if (putResult.containsKey("error")) {
-                Map<String, Object> error = (Map<String, Object>) putResult.get("error");
-                log.warn("[SmartstoreAPI][Stock] 에러 응답 - {}", error);
-                result.put("success", false);
-                result.put("errorCode", error.get("code"));
-                result.put("errorMsg", error.get("message"));
-            } else {
-                log.info("[SmartstoreAPI][Stock] 재고 변경 성공 - {}", putResult);
-                result.put("success", true);
-                result.put("data", putResult);
-            }
         } catch (Exception e) {
-            log.error("[SmartstoreAPI][Stock] 재고 변경 장애 - originProductNo={}, stock={}, 원인={}", originProductNo, stock, e.getMessage(), e);
-            result.put("success", false);
-            result.put("errorCode", "SYSTEM");
-            result.put("errorMsg", e.getMessage());
+            log.error("[SmartstoreAPI][Stock] 재고 변경 장애 - originProductNo={}, stock={}, 원인={}",
+                    originProductNo, stock, e.getMessage(), e);
+            return "{}";
         }
-        return result;
     }
 
 

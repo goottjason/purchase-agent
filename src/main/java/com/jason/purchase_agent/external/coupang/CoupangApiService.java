@@ -47,8 +47,7 @@ public class CoupangApiService {
     }
 
 
-    public Map<String, Object> updatePrice(String vendorItemId, Integer salePrice) {
-        Map<String, Object> result = new HashMap<>();
+    public String updatePrice(String vendorItemId, Integer salePrice) {
         log.info("[CoupangAPI][Price] 가격 변경 요청 - vendorItemId={}, salePrice={}", vendorItemId, salePrice);
 
         try {
@@ -57,34 +56,18 @@ public class CoupangApiService {
                     vendorItemId, salePrice);
             log.debug("[CoupangAPI][Price] 요청 경로: {}", path);
 
-            String res = executeRequest("PUT", path, null, null);
-            log.debug("[CoupangAPI][Price] API 원본 응답: {}", res);
-            ObjectMapper objectMapper = new ObjectMapper();
-            Map<String, Object> apiResult = objectMapper.readValue(res, new TypeReference<Map<String, Object>>() {});
-            log.debug("[CoupangAPI][Price] 파싱 결과: {}", apiResult);
+            String response = executeRequest("PUT", path, null, null);
+            log.debug("[CoupangAPI][Price] API 원본 응답: {}", response);
 
-            if (apiResult.containsKey("error")) {
-                Map<String, Object> error = (Map<String, Object>) apiResult.get("error");
-                log.warn("[CoupangAPI][Price] 에러 응답 - error={}", error);
-                result.put("success", false);
-                result.put("errorCode", error.get("code"));
-                result.put("errorMsg", error.get("message"));
-            } else {
-                log.info("[CoupangAPI][Price] 가격 변경 성공 - apiResult={}", apiResult);
-                result.put("success", true);
-                result.put("data", apiResult);
-            }
+            return response;
         } catch (Exception e) {
-            log.error("[CoupangAPI][Price] 요청/파싱 에러 - vendorItemId={}, salePrice={}, 원인={}", vendorItemId, salePrice, e.getMessage(), e);
-
-            result.put("success", false);
-            result.put("errorCode", "SYSTEM");
-            result.put("errorMsg", e.getMessage());
+            log.error("[CoupangAPI][Price] 요청/파싱 에러 - vendorItemId={}, price={}, 원인={}",
+                    vendorItemId, salePrice, e.getMessage());
+            // 필요시 에러 JSON etc
+            return "{}";
         }
-        return result;
     }
-    public Map<String, Object> updateStock(String vendorItemId, Integer stock) {
-        Map<String, Object> result = new HashMap<>();
+    public String updateStock(String vendorItemId, Integer stock) {
         log.info("[CoupangAPI][Stock] 재고 변경 요청 - vendorItemId={}, stock={}", vendorItemId, stock);
 
         try {
@@ -93,70 +76,15 @@ public class CoupangApiService {
                     vendorItemId, stock);
             log.debug("[CoupangAPI][Stock] 요청 경로: {}", path);
 
-            String res = executeRequest("PUT", path, null, null);
-            log.debug("[CoupangAPI][Stock] API 원본 응답: {}", res);
+            String response = executeRequest("PUT", path, null, null);
+            log.debug("[CoupangAPI][Stock] API 원본 응답: {}", response);
 
-            ObjectMapper objectMapper = new ObjectMapper();
-            Map<String, Object> apiResult = objectMapper.readValue(res, new TypeReference<Map<String, Object>>() {});
-            log.debug("[CoupangAPI][Stock] 파싱 결과: {}", apiResult);
-            /**
-             * {
-             *      path=/api/v1/marketplace/vendor-items/15792671225/quantities/489,
-             *      error=FORBIDDEN,
-             *      message=Your ip address 61.74.244.30 is not allowed for this request.,
-             *      timestamp=1759566682420,
-             *      status=403
-             * }
-             */
-
-            Object errorObj = apiResult.get("error");
-            if (errorObj != null) {
-                if (errorObj instanceof Map) {
-                    // error가 Map일 때 (예: {code: 123, message: "msg"})
-                    Map<String, Object> error = (Map<String, Object>) errorObj;
-                    result.put("success", false);
-                    result.put("errorCode", error.get("code"));
-                    result.put("errorMsg", error.get("message"));
-                } else if (errorObj instanceof String) {
-                    // error가 문자열일 때 (예: "FORBIDDEN", "INVALID", 등)
-                    result.put("success", false);
-                    result.put("errorCode", errorObj); // errorCode에 error 문자열 값 직접 ("FORBIDDEN")
-                    result.put("errorMsg", apiResult.get("message")); // 상세 메시지는 Map에서 가져옴
-                    result.put("errorPath", apiResult.get("path"));
-                    result.put("errorStatus", apiResult.get("status"));
-                } else {
-                    // 예외적 처리: 다른 타입이면 그대로 전체 기록
-                    result.put("success", false);
-                    result.put("errorCode", "UNKNOWN");
-                    result.put("errorMsg", String.valueOf(errorObj));
-                }
-            } else {
-                // 정상 성공 케이스
-                result.put("success", true);
-                result.put("data", apiResult);
-            }
-
-            /*if (apiResult.containsKey("error")) {
-                Map<String, Object> error = (Map<String, Object>) apiResult.get("error");
-                log.warn("[CoupangAPI][Stock] 에러 응답 - error={}", error);
-
-                result.put("success", false);
-                result.put("errorCode", error.get("code"));
-                result.put("errorMsg", error.get("message"));
-            } else {
-                log.info("[CoupangAPI][Stock] 재고 변경 성공 - apiResult={}", apiResult);
-
-                result.put("success", true);
-                result.put("data", apiResult);
-            }*/
+            return response;
         } catch (Exception e) {
-            log.error("[CoupangAPI][Stock] 요청/파싱 에러 - vendorItemId={}, stock={}, 원인={}", vendorItemId, stock, e.getMessage(), e);
-
-            result.put("success", false);
-            result.put("errorCode", "SYSTEM");
-            result.put("errorMsg", e.getMessage());
+            log.error("[CoupangAPI][Stock] 요청/파싱 에러 - vendorItemId={}, stock={}, 원인={}",
+                    vendorItemId, stock, e.getMessage());
+            return "{}";
         }
-        return result;
     }
 
 

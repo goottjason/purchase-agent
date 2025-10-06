@@ -77,27 +77,33 @@ function formatMessage(message, batchId, productCode) {
       const channelResults = JSON.parse(message);
       let formattedHtml = '<div class="channel-results-row">';
 
-      Object.entries(channelResults).forEach(([channel, result]) => {
+      Object.entries(channelResults).forEach(([channel, resultList]) => {
         const channelName = {
           'coupang': '쿠팡',
           'smartstore': '스마트스토어',
           'elevenst': '11번가'
         }[channel] || channel;
 
-        const statusClass = result.status === 'SUCCESS' ? 'success' : 'fail';
-        // FAIL 카드만 클릭 이벤트 및 데이터 속성 부여
-        const clickable = result.status === 'FAIL' ? 'cursor:pointer;' : '';
-        const dataAttrs = result.status === 'FAIL'
-          ? `data-channel="${channel}" data-batch-id="${batchId}" data-product-code="${productCode}"`
-          : '';
+        // 리스트가 아니면(옛값 호환) 강제 래핑
+        if (!Array.isArray(resultList)) resultList = [resultList];
 
-        formattedHtml += `
-          <div class="channel-result ${statusClass}" style="${clickable}" ${dataAttrs}>
-            <strong>${channelName}</strong>: ${result.status}
-            <div class="channel-message">${result.message}</div>
-            ${result.channelProductId ? `<div class="product-id">상품ID: ${result.channelProductId}</div>` : ''}
-          </div>
-        `;
+        resultList.forEach(result => {
+          const statusClass = result.status;
+          const typeLabel = result.type === 'price' ? '가격' :
+            result.type === 'stock' ? '재고' : (result.type || '');
+          const clickable = result.status === 'FAIL' ? 'cursor:pointer;' : '';
+          const dataAttrs = result.status === 'FAIL'
+            ? `data-channel="${channel}" data-batch-id="${batchId}" data-product-code="${productCode}"`
+            : '';
+
+          formattedHtml += `
+            <div class="channel-result ${statusClass}" style="${clickable}" ${dataAttrs}>
+              <strong>${channelName}${typeLabel ? ' ('+typeLabel+')' : ''}</strong>: ${result.status}
+              <div class="channel-message">${result.message || ''}</div>
+              ${result.channelProductId ? `<div class="product-id">상품ID: ${result.channelProductId}</div>` : ''}
+            </div>
+          `;
+        });
       });
 
       formattedHtml += '</div>';

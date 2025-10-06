@@ -38,8 +38,6 @@ public class CoupangInfoConsumer {
             String responseJson = coupangApiService.findProductInfo(msg.getSellerProductId());
             JsonNode root = objectMapper.readTree(responseJson);
 
-            /*{"path":"/api/v1/marketplace/seller-products/15792671225","error":"FORBIDDEN","message":"Your ip address 61.75.92.208 is not allowed for this request. If you need service access, please contact the Coupang seller call center. (Tel: +82-1600-9879, Email: openapisupport@coupang.com)","timestamp":1759648350119,"status":403}*/
-
             // 기본 성공 플래그
             boolean findSuccess = false;
             String vendorItemId = null;
