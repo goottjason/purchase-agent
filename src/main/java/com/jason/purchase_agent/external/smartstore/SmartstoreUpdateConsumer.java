@@ -44,7 +44,7 @@ public class SmartstoreUpdateConsumer {
             } else {
                 // 성공 케이스 (code 없음)
                 status = "SUCCESS";
-                returnedMessage = String.format("가격변경완료(가격: %,d원, ID: %s)",
+                returnedMessage = String.format("가격: %,d원, ID: %s",
                         msg.getSalePrice(), msg.getChannelId());
             }
 
@@ -98,7 +98,7 @@ public class SmartstoreUpdateConsumer {
             } else {
                 // 성공 케이스
                 status = "SUCCESS";
-                returnedMessage = String.format("재고변경완료(재고: %d개, ID: %s)",
+                returnedMessage = String.format("재고: %d개, ID: %s",
                         msg.getStock(), msg.getChannelId());;
             }
 

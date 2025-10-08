@@ -460,22 +460,22 @@ public class ProductService {
     private void updateProductFields(
             Product product, ProductUpdateRequest request
     ) {
-        product.setTitle(request.getTitle());
-        product.setKorName(request.getKorName());
-        product.setEngName(request.getEngName());
-        product.setBrandName(request.getBrandName());
-        product.setUnitValue(request.getUnitValue());
-        product.setUnit(request.getUnit());
-        product.setWeight(request.getWeight());
-        product.setLink(request.getLink());
-        product.setBuyPrice(request.getBuyPrice());
-        product.setSalePrice(request.getSalePrice());
-        product.setStock(request.getStock());
-        product.setPackQty(request.getPackQty());
-        product.setMarginRate(request.getMarginRate());
-        product.setShippingCost(request.getShippingCost());
-        product.setDetailsHtml(request.getDetailsHtml());
-        product.setMemo(request.getMemo());
+        if (request.getTitle() != null) product.setTitle(request.getTitle());
+        if (request.getKorName() != null) product.setKorName(request.getKorName());
+        if (request.getEngName() != null) product.setEngName(request.getEngName());
+        if (request.getBrandName() != null) product.setBrandName(request.getBrandName());
+        if (request.getUnitValue() != null) product.setUnitValue(request.getUnitValue());
+        if (request.getUnit() != null) product.setUnit(request.getUnit());
+        if (request.getWeight() != null) product.setWeight(request.getWeight());
+        if (request.getLink() != null) product.setLink(request.getLink());
+        if (request.getBuyPrice() != null) product.setBuyPrice(request.getBuyPrice());
+        if (request.getSalePrice() != null) product.setSalePrice(request.getSalePrice());
+        if (request.getStock() != null) product.setStock(request.getStock());
+        if (request.getPackQty() != null) product.setPackQty(request.getPackQty());
+        if (request.getMarginRate() != null) product.setMarginRate(request.getMarginRate());
+        if (request.getShippingCost() != null) product.setShippingCost(request.getShippingCost());
+        if (request.getDetailsHtml() != null) product.setDetailsHtml(request.getDetailsHtml());
+        if (request.getMemo() != null) product.setMemo(request.getMemo());
     }
 
     /**
@@ -484,11 +484,11 @@ public class ProductService {
     private void updateChannelMappingFields(
             ProductChannelMapping mapping, ProductUpdateRequest request
     ) {
-        mapping.setVendorItemId(request.getVendorItemId());
-        mapping.setSellerProductId(request.getSellerProductId());
-        mapping.setSmartstoreId(request.getSmartstoreId());
-        mapping.setOriginProductNo(request.getOriginProductNo());
-        mapping.setElevenstId(request.getElevenstId());
+        if (request.getVendorItemId() != null) mapping.setVendorItemId(request.getVendorItemId());
+        if (request.getSellerProductId() != null) mapping.setSellerProductId(request.getSellerProductId());
+        if (request.getSmartstoreId() != null) mapping.setSmartstoreId(request.getSmartstoreId());
+        if (request.getOriginProductNo() != null) mapping.setOriginProductNo(request.getOriginProductNo());
+        if (request.getElevenstId() != null) mapping.setElevenstId(request.getElevenstId());
     }
 
     /**

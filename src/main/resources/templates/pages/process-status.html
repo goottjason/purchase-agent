@@ -76,7 +76,7 @@
 
     .delete-btn {
       border: none;
-      background: #ef4444;
+      background: #ff8181;
       color: #fff;
       border-radius: 4px;
       padding: 4px 8px;
@@ -111,6 +111,27 @@
       text-align: center;      /* 가로 가운데 정렬 */
       vertical-align: middle;  /* 세로 가운데 정렬 */
     }
+    .paging-btn {
+      display: inline-block;
+      min-width: 32px;
+      padding: 6px 0;
+      border: 1px solid #e5e7eb;
+      background: #f1f5f9;
+      color: #2563eb;
+      border-radius: 5px;
+      font-size: 15px;
+      margin: 0 2px;
+      cursor: pointer;
+      transition: background 0.18s, color 0.18s;
+    }
+    .paging-btn.active,
+    .paging-btn:focus,
+    .paging-btn:hover {
+      background: #2563eb;
+      color: #fff;
+      border-color: #2563eb;
+      outline:none;
+    }
   </style>
   <div class="container-fluid">
 
@@ -121,8 +142,18 @@
 
     <!-- 배치 등록 현황 카드 -->
     <div class="card shadow mb-4" style="max-width: 1500px; margin: 0 auto;">
-      <div class="card-header py-3">
+      <!-- Table 위에 "전체삭제"와 "페이지당" 셀렉트 추가 -->
+      <div class="card-header py-3" style="display:flex; justify-content:space-between; align-items: center;">
         <h6 class="m-0 font-weight-bold text-primary">상품등록 배치 현황</h6>
+        <div>
+          <button class="delete-all-btn" style="background:#ef4444; color:#fff; border:none; border-radius:6px; font-size:14px; padding:7px 16px; margin-right:12px;">전체삭제</button>
+          <label style="margin-right:6px;">페이지당</label>
+          <select id="pageSizeSelect" style="padding:4px 10px; border-radius:5px;">
+            <option value="20">20</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+          </select>
+        </div>
       </div>
       <div class="card-body">
         <table id="statusTable" class="table table-bordered">
@@ -146,6 +177,7 @@
           </thead>
           <tbody></tbody>
         </table>
+        <div id="pagingArea" style="text-align:center; margin:8px 0;"></div>
       </div>
     </div>
   </div> <!-- End Container Fluid -->

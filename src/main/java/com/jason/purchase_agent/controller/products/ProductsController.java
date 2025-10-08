@@ -182,82 +182,100 @@ public class ProductsController {
     }
 
     /**
-     * 상품 가격/재고 일괄 업데이트 (AJAX)
+     * 상품 가격/재고 업데이트 (유저가 직접 가격/재고 수정)
      */
     @PostMapping("/products/bulk-update")
     @ResponseBody
-    public ResponseEntity<Map<String, Object>> bulkUpdatePriceAndStock(
+    public ResponseEntity<?> bulkUpdatePriceAndStock(
             @RequestBody ProductUpdateDto updateDto
     ) {
-        log.info("상품 가격/재고 일괄 업데이트 요청 - 대상: {}개", updateDto.getUpdateItems().size());
+        log.info("상품 가격/재고 일괄 업데이트 요청 - 대상: {}개",
+                updateDto.getUpdateItems().size());
 
-        Map<String, Object> result = new HashMap<>();
-
-        try {
-            // Product 테이블에서 업데이트
-            productService.updateProductPriceAndStock(updateDto);
-
-            for (ProductUpdateDto.ProductUpdateItemDto item : updateDto.getUpdateItems()) {
-                System.out.println("item = " + item);
-                coupangApiService.updatePriceStock(item.getVendorItemId(), item.getSalePrice(), item.getStock());
-                smartstoreApiService.updatePriceStock(item.getOriginProductNo(), item.getSalePrice(), item.getStock());
-                elevenstApiService.updatePriceStock(item.getElevenstId(), item.getSalePrice(), item.getStock());
-            }
-            
-            result.put("success", true);
-            result.put("message", "성공적으로 업데이트되었습니다.");
-            result.put("updatedCount", updateDto.getUpdateItems().size());
-        } catch (Exception e) {
-            log.error("상품 업데이트 실패", e);
-            result.put("success", false);
-            result.put("message", "업데이트 중 오류가 발생했습니다: " + e.getMessage());
+        List<String> resultCodes = new ArrayList<>();
+        for (ProductUpdateDto.ProductUpdateItemDto item : updateDto.getUpdateItems()) {
+            // ProductUpdateItemDto → ProductUpdateRequest로 변환
+            ProductUpdateRequest req = convertToRequest(item);
+            String targetBatchId = productService.updateProductAndMappingWithSync(
+                    req.getCode(), req, item.isPriceChanged(), item.isStockChanged(), null
+            );
+            resultCodes.add(req.getCode());
         }
-
-        return ResponseEntity.ok(result);
+        return ResponseEntity.ok(Map.of(
+                "success", true,
+                "codes", resultCodes,
+                "message", "일괄 수정 요청 접수. 실제 반영 여부는 이력에서 확인"
+        ));
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
-    @PostMapping("/admin/products/batch-auto-price-stock-update")
+    private ProductUpdateRequest convertToRequest(
+            ProductUpdateDto.ProductUpdateItemDto item
+    ) {
+        ProductUpdateRequest req = new ProductUpdateRequest();
+        req.setCode(item.getCode());
+        req.setSalePrice(item.getSalePrice());
+        req.setStock(item.getStock());
+        req.setSellerProductId(item.getSellerProductId());
+        req.setVendorItemId(item.getVendorItemId());
+        req.setSmartstoreId(item.getSmartstoreId());
+        req.setOriginProductNo(item.getOriginProductNo());
+        req.setElevenstId(item.getElevenstId());
+        // 필요한 필드 계속 복사 (DTO 구조에 맞게 수정)
+        return req;
+    }
+
+    @PostMapping("/products/calculated-price-update")
     @ResponseBody
-    public ResponseEntity<Map<String, Object>> batchAutoPriceStockUpdate(
+    public ResponseEntity<Map<String, Object>> calculatedPriceUpdate (
             @RequestBody BatchAutoPriceStockUpdateRequest request
     ) {
+        List<String> successCodes = new ArrayList<>();
+        List<String> failCodes = new ArrayList<>();
+        List<String> messages = new ArrayList<>();
+        // String batchId = request.getBatchId(); // 신규 or null은 서비스에서 처리
 
-        try {
-            // 배치아이디 생성
-            String batchId = UUID.randomUUID().toString();
+        for (ProductDto dto: request.getProducts()) {
+            try {
+                // STEP 1. 크롤링해서 IherbProductDto를 반환 받는다
+                // STEP 2. 만들어진 calculateSalePrice로 salePrice를 계산한다.
+                // STEP 3. IherbProductDto에서 isAvailableToPurchase에 맞춰서 계산한다.
+                // STEP 4. updateProductAndMappingWithSync에 보낸다.
 
-            // 변수 선언
-            Integer marginRate = request.getMarginRate();
-            Integer couponRate = request.getCouponRate();
-            Integer minMarginPrice = request.getMinMarginPrice();
-            List<ProductDto> products = request.getProducts();
+/*                // STEP 1. 크롤링 (재고/구매가 등) - 동기 or 비동기 처리
+                Integer crawledStock = crawlingService.getStock(item.getLink(), ...);
+                Integer crawledBuyPrice = crawlingService.getBuyPrice(item.getLink(), ...);
 
-            // 배치의 상품들 순회하여 메시지 발행 (
-            for (ProductDto product : products) {
-                // 메시지 빌더
-                BatchAutoPriceStockUpdateMessage message = BatchAutoPriceStockUpdateMessage.builder()
-                        .batchId(batchId)
-                        .requestedBy("ADMIN")
-                        .requestedAt(LocalDateTime.now())
-                        .marginRate(marginRate)
-                        .couponRate(couponRate)
-                        .minMarginPrice(minMarginPrice)
-                        .productDto(product)
-                    .build();
+                // STEP 2. salePrice/stock 계산 (비즈니스 로직)
+                Integer calculatedSalePrice = calculateSalePrice(crawledBuyPrice, request.getMarginRate(), ...);
+                Integer calculatedStock = calculateAvailableStock(crawledStock, ...);
 
-                // 메시지 발행
-                messageQueueService.publishProductsBatchAutoPriceStockUpdate(message);
+                // STEP 3. Update DTO 생성 후 updateProductAndMappingWithSync 호출
+                ProductUpdateRequest req = new ProductUpdateRequest();
+                req.setCode(item.getCode());
+                req.setBuyPrice(crawledBuyPrice);
+                req.setSalePrice(calculatedSalePrice);
+                req.setStock(calculatedStock);
+
+                productService.updateProductAndMappingWithSync(
+                        req.getCode(), req, true, true, null
+                );
+
+                successCodes.add(item.getCode());*/
+            } catch (Exception ex) {
+                failCodes.add(item.getCode());
+                messages.add(item.getCode() + ": " + ex.getMessage());
+                // 로깅 등
             }
-            // 모든 메시지 발행 성공
-            return ResponseEntity.ok(
-                    Map.of("success", true));
-        } catch (Exception e) {
-
-            // 메시지 발행 중 에러 발생
-            return ResponseEntity.status(500).body(
-                    Map.of("success", false, "error", e.getMessage()));
         }
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("success", failCodes.isEmpty());
+        result.put("batchId", batchId);
+        result.put("successCodes", successCodes);
+        result.put("failCodes", failCodes);
+        result.put("messages", messages);
+
+        return ResponseEntity.ok(result);
     }
 
     @PutMapping("/products/{code}")

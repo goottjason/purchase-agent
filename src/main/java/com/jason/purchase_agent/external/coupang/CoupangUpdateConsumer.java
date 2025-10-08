@@ -34,7 +34,7 @@ public class CoupangUpdateConsumer {
 
             String code = root.path("code").asText(""); // string "SUCCESS" or error code
             // String returnedMessage = root.path("message").asText("상세 메시지 없음");
-            String message = String.format("가격변경완료(가격: %,d원, ID: %s)",
+            String message = String.format("가격: %,d원, ID: %s",
                     msg.getSalePrice(), msg.getChannelId());
             boolean findSuccess = "SUCCESS".equalsIgnoreCase(code);
 
@@ -80,7 +80,7 @@ public class CoupangUpdateConsumer {
 
             String code = root.path("code").asText(""); // "SUCCESS" or error code
             // String returnedMessage = root.path("message").asText("상세 메시지 없음");
-            String message = String.format("재고변경완료(재고: %d개, ID: %s)",
+            String message = String.format("재고: %d개, ID: %s",
                     msg.getStock(), msg.getChannelId());
             boolean findSuccess = "SUCCESS".equalsIgnoreCase(code);
 

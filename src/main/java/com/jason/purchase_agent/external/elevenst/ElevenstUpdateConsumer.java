@@ -46,7 +46,7 @@ public class ElevenstUpdateConsumer {
             Map<String, Object> channelResult = new HashMap<>();
             if (findSuccess) {
                 channelResult.put("status", "SUCCESS");
-                channelResult.put("message", String.format("가격변경완료(가격: %,d원, ID: %s)", msg.getSalePrice(), msg.getChannelId()));
+                channelResult.put("message", String.format("가격: %,d원, ID: %s", msg.getSalePrice(), msg.getChannelId()));
             } else {
                 channelResult.put("status", "FAIL");
                 channelResult.put("message", code + " : " + returnedMessage);
@@ -103,7 +103,7 @@ public class ElevenstUpdateConsumer {
             Map<String, Object> channelResult = new HashMap<>();
             if (findSuccess) {
                 channelResult.put("status", "SUCCESS");
-                channelResult.put("message", String.format("재고변경완료(재고: %,d개, ID: %s)", msg.getStock(), msg.getChannelId()));
+                channelResult.put("message", String.format("재고: %,d개, ID: %s", msg.getStock(), msg.getChannelId()));
             } else {
                 channelResult.put("status", "FAIL");
                 channelResult.put("message", code + " : " + returnedMessage);

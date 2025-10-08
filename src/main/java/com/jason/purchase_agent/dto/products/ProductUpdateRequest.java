@@ -8,6 +8,7 @@ import java.math.BigDecimal;
 @AllArgsConstructor
 @NoArgsConstructor
 public class ProductUpdateRequest {
+    private String code;
     private String title;
     private String korName;
     private String engName;

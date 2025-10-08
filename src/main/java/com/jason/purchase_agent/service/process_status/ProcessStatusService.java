@@ -6,6 +6,10 @@ import com.jason.purchase_agent.entity.ProcessStatus;
 import com.jason.purchase_agent.repository.jpa.ProcessStatusRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,6 +28,24 @@ import static com.jason.purchase_agent.util.converter.StringListConverter.object
 public class ProcessStatusService {
 
     private final ProcessStatusRepository psr;
+
+    // 페이징 조회
+    public Page<ProcessStatus> getPagedStatus(int page, int size) {
+        Pageable pageable = PageRequest.of(page-1, size, Sort.by(Sort.Direction.DESC, "startedAt"));
+        return psr.findAll(pageable);
+    }
+
+    // 단건 삭제
+    @Transactional // 추가!
+    public void deleteRow(String batchId, String productCode) {
+        psr.deleteByBatchIdAndProductCode(batchId, productCode);
+    }
+
+    // 전체 삭제
+    @Transactional // 추가!
+    public void deleteAllRows() {
+        psr.deleteAll();
+    }
 
     /** 배치ID + 상품코드 단위 현황 upsert
      *
@@ -127,8 +149,10 @@ public class ProcessStatusService {
 
         // 전체 채널의 price/stock update가 모두 success일 때만 SUCCESS, 아니면 FAIL
         boolean allSuccess = msgJson.values().stream()
-                .flatMap(val -> ((List<Map<String,Object>>) val).stream())
-                .allMatch(item -> Boolean.TRUE.equals(item.get("success")));
+                .map(val -> (List<Map<String,Object>>) val)
+                .allMatch(list ->
+                        !list.isEmpty() && "SUCCESS".equals(list.get(list.size() - 1).get("status"))
+                );
         ps.setStatus(allSuccess ? "SUCCESS" : "FAIL");
         log.info("[ProcessStatus][Merge] status 계산, allSuccess={}, 최종 status={}", allSuccess, ps.getStatus());
 

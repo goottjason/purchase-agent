@@ -10,6 +10,7 @@ public class Calculator {
             Integer minMarginPrice,
             ProductDto product,
             IherbProductDto dto) {
+
         // 현재 상품 자체에서 할인중인 할인율
         Double salesDiscountPercentage = dto.getSalesDiscountPercentage();
 

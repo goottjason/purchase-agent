@@ -17,6 +17,9 @@ import java.util.Optional;
 @Repository
 public interface ProcessStatusRepository extends JpaRepository<ProcessStatus, Long> {
 
+    void deleteByBatchIdAndProductCode(String batchId, String productCode);
+
+
     // 배치ID + 상품코드 기준 단일 조회
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<ProcessStatus> findByBatchIdAndProductCode(String batchId, String productCode);
