@@ -1,6 +1,8 @@
 package com.jason.purchase_agent.controller.products;
 
 import com.jason.purchase_agent.dto.products.*;
+import com.jason.purchase_agent.external.iherb.IherbProductCrawler;
+import com.jason.purchase_agent.repository.jpa.ProductRepository;
 import com.jason.purchase_agent.service.products.ProductService;
 import com.jason.purchase_agent.messaging.MessageQueueService;
 
@@ -16,12 +18,10 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.LocalDateTime;
 import java.util.*;
 
 @Controller
@@ -31,12 +31,12 @@ public class ProductsController {
 
     private final ProductService productService;
     private final MessageQueueService messageQueueService;
-
+    private final ProductRepository productRepository;
 
     private final CoupangApiService coupangApiService;
     private final SmartstoreApiService smartstoreApiService;
     private final ElevenstApiService elevenstApiService;
-
+    private final IherbProductCrawler iherbProductCrawler;
     /**
      * 상품목록 페이지 (GET) - 필터 파라미터 추가
      */
@@ -181,116 +181,66 @@ public class ProductsController {
         return "pages/products/detail";  // templates/products/detail.html
     }
 
-    /**
-     * 상품 가격/재고 업데이트 (유저가 직접 가격/재고 수정)
-     */
-    @PostMapping("/products/bulk-update")
-    @ResponseBody
-    public ResponseEntity<?> bulkUpdatePriceAndStock(
-            @RequestBody ProductUpdateDto updateDto
-    ) {
-        log.info("상품 가격/재고 일괄 업데이트 요청 - 대상: {}개",
-                updateDto.getUpdateItems().size());
 
-        List<String> resultCodes = new ArrayList<>();
-        for (ProductUpdateDto.ProductUpdateItemDto item : updateDto.getUpdateItems()) {
-            // ProductUpdateItemDto → ProductUpdateRequest로 변환
-            ProductUpdateRequest req = convertToRequest(item);
-            String targetBatchId = productService.updateProductAndMappingWithSync(
-                    req.getCode(), req, item.isPriceChanged(), item.isStockChanged(), null
-            );
-            resultCodes.add(req.getCode());
-        }
-        return ResponseEntity.ok(Map.of(
-                "success", true,
-                "codes", resultCodes,
-                "message", "일괄 수정 요청 접수. 실제 반영 여부는 이력에서 확인"
-        ));
-    }
 
-    private ProductUpdateRequest convertToRequest(
-            ProductUpdateDto.ProductUpdateItemDto item
-    ) {
-        ProductUpdateRequest req = new ProductUpdateRequest();
-        req.setCode(item.getCode());
-        req.setSalePrice(item.getSalePrice());
-        req.setStock(item.getStock());
-        req.setSellerProductId(item.getSellerProductId());
-        req.setVendorItemId(item.getVendorItemId());
-        req.setSmartstoreId(item.getSmartstoreId());
-        req.setOriginProductNo(item.getOriginProductNo());
-        req.setElevenstId(item.getElevenstId());
-        // 필요한 필드 계속 복사 (DTO 구조에 맞게 수정)
-        return req;
-    }
 
-    @PostMapping("/products/calculated-price-update")
-    @ResponseBody
-    public ResponseEntity<Map<String, Object>> calculatedPriceUpdate (
-            @RequestBody BatchAutoPriceStockUpdateRequest request
-    ) {
-        List<String> successCodes = new ArrayList<>();
-        List<String> failCodes = new ArrayList<>();
-        List<String> messages = new ArrayList<>();
-        // String batchId = request.getBatchId(); // 신규 or null은 서비스에서 처리
 
-        for (ProductDto dto: request.getProducts()) {
-            try {
-                // STEP 1. 크롤링해서 IherbProductDto를 반환 받는다
-                // STEP 2. 만들어진 calculateSalePrice로 salePrice를 계산한다.
-                // STEP 3. IherbProductDto에서 isAvailableToPurchase에 맞춰서 계산한다.
-                // STEP 4. updateProductAndMappingWithSync에 보낸다.
 
-/*                // STEP 1. 크롤링 (재고/구매가 등) - 동기 or 비동기 처리
-                Integer crawledStock = crawlingService.getStock(item.getLink(), ...);
-                Integer crawledBuyPrice = crawlingService.getBuyPrice(item.getLink(), ...);
 
-                // STEP 2. salePrice/stock 계산 (비즈니스 로직)
-                Integer calculatedSalePrice = calculateSalePrice(crawledBuyPrice, request.getMarginRate(), ...);
-                Integer calculatedStock = calculateAvailableStock(crawledStock, ...);
 
-                // STEP 3. Update DTO 생성 후 updateProductAndMappingWithSync 호출
-                ProductUpdateRequest req = new ProductUpdateRequest();
-                req.setCode(item.getCode());
-                req.setBuyPrice(crawledBuyPrice);
-                req.setSalePrice(calculatedSalePrice);
-                req.setStock(calculatedStock);
-
-                productService.updateProductAndMappingWithSync(
-                        req.getCode(), req, true, true, null
-                );
-
-                successCodes.add(item.getCode());*/
-            } catch (Exception ex) {
-                failCodes.add(item.getCode());
-                messages.add(item.getCode() + ": " + ex.getMessage());
-                // 로깅 등
-            }
-        }
-
-        Map<String, Object> result = new HashMap<>();
-        result.put("success", failCodes.isEmpty());
-        result.put("batchId", batchId);
-        result.put("successCodes", successCodes);
-        result.put("failCodes", failCodes);
-        result.put("messages", messages);
-
-        return ResponseEntity.ok(result);
-    }
 
     @PutMapping("/products/{code}")
     @ResponseBody
     public ResponseEntity<?> updateProduct(
             @PathVariable String code,
-            @ModelAttribute ProductUpdateRequest request,
+            @ModelAttribute ProductDto productDto,
             @RequestParam(defaultValue = "false") boolean priceChanged,
-            @RequestParam(defaultValue = "false") boolean stockChanged,
-            @RequestParam(required = false) String batchId // 신규는 null, 재요청은 기존 배치ID
+            @RequestParam(defaultValue = "false") boolean stockChanged
     ) {
 
-        String targetBatchId = productService.updateProductAndMappingWithSync(
-                code, request, priceChanged, stockChanged, batchId);
+        // 단일 상품은 리스트로 감싸서 배치 메서드 호출
+        List<ProductUpdateRequest> requests = Collections.singletonList(
+                new ProductUpdateRequest(code, productDto, priceChanged, stockChanged)
+        );
 
+        String targetBatchId = productService.updateProductsBatch(requests, null);
+
+        return ResponseEntity.ok(Map.of(
+                "success", true,
+                "batchId", targetBatchId,
+                "message", "수정 요청 접수. 실제 반영 여부는 이력에서 확인"
+        ));
+    }
+
+    /**
+     * 상품 가격/재고 업데이트 (유저가 직접 가격/재고 수정)
+     */
+    @PostMapping("/products/manual-price-stock-update")
+    @ResponseBody
+    public ResponseEntity<?> manualPriceStockUpdate(
+            @RequestBody List<ProductUpdateRequest> requests
+    ) {
+        String targetBatchId = productService.updateProductsBatch(requests, null);
+
+        return ResponseEntity.ok(Map.of(
+                "success", true,
+                "batchId", targetBatchId,
+                "message", "수정 요청 접수. 실제 반영 여부는 이력에서 확인"
+        ));
+    }
+
+    @PostMapping("/products/crawl-and-price-stock-update")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> crawlAndPriceStockUpdate (
+            @RequestParam int marginRate,
+            @RequestParam int couponRate,
+            @RequestParam int minMarginPrice,
+            @RequestBody List<ProductUpdateRequest> requests
+    ) {
+        productService.crawlAndSetPriceStock(
+                marginRate, couponRate, minMarginPrice, requests);
+
+        String targetBatchId = productService.updateProductsBatch(requests, null);
 
         return ResponseEntity.ok(Map.of(
                 "success", true,

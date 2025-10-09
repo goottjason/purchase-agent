@@ -1,15 +1,19 @@
 package com.jason.purchase_agent.controller;
 
+import com.jason.purchase_agent.external.cafe.CafeApiService;
 import com.jason.purchase_agent.service.categories.CategoryService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 
 @Controller
 @RequiredArgsConstructor
 public class PageController {
     private final CategoryService categoryService;
-
+    private final CafeApiService cafeApiService;
     // 메인 대시보드
     @GetMapping("/")
     public String home() {
@@ -79,4 +83,17 @@ public class PageController {
     public String utilitiesOther() {
         return "pages/utilities-other";
     }
+
+    // 관리자가 인증코드 입력할 수 있는 API 추가 예시
+    @PostMapping("/api/cafe24/set-auth-code")
+    public ResponseEntity<?> setAuthCode(@RequestParam String code) {
+        try {
+            cafeApiService.requestTokens(code);
+            return ResponseEntity.ok("토큰 발급 성공, refresh_token.txt 저장됨!");
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("토큰 발급 실패: " + e.getMessage());
+        }
+    }
+    @GetMapping("/temp")
+    public String temp() { return "pages/temp"; }
 }

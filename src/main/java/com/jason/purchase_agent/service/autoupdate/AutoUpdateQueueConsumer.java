@@ -29,8 +29,6 @@ public class AutoUpdateQueueConsumer {
     private final CoupangApiService coupangApiService;
     private final SmartstoreApiService smartstoreApiService;
     private final ElevenstApiService elevenstApiService;
-    private static final Gson gson = new Gson();
-
 
 
     /**

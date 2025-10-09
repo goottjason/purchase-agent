@@ -6,11 +6,11 @@
 function updateSelectedCount() {
   const count = $('.product-checkbox:checked').length;
   $('#selectedCount').text(count);
-  $('#calculatedPriceUpdateBtn').prop('disabled', count === 0);
+  $('#crawlAndPriceStockUpdateBtn').prop('disabled', count === 0);
 }
 
 // 2. "가격/재고 일괄 업데이트" 실행
-function calculatedPriceUpdate() {
+function crawlAndPriceStockUpdate() {
   const selectedCodes = $('.product-checkbox:checked').map(function() {
     return $(this).val();
   }).get();
@@ -21,6 +21,13 @@ function calculatedPriceUpdate() {
   const marginRate = Number($('#margin-rate').val());
   const couponRate = Number($('#coupon-rate').val());
   const minMarginPrice = Number($('#min-margin-price').val());
+
+  const params = {
+    marginRate: marginRate,
+    couponRate: couponRate,
+    minMarginPrice: minMarginPrice
+  };
+  const qs = $.param(params);
 
   // 체크 상품 정보 추출
   const products = selectedCodes.map(code => {
@@ -47,12 +54,10 @@ function calculatedPriceUpdate() {
   });
 
   $.ajax({
-    url: '/admin/products/batch-auto-price-stock-update',
+    url: '/products/crawl-and-price-stock-update?' + qs,
     method: 'POST',
     contentType: 'application/json',
-    data: JSON.stringify({
-      marginRate, couponRate, minMarginPrice, products
-    }),
+    data: JSON.stringify(products),
     success: function(resp) {
       alert('업데이트 요청이 성공적으로 MQ로 전송되었습니다.');
     },
@@ -118,7 +123,7 @@ function finishEditing($cell, $input, code, field) {
     }
     modifiedData[code][field] = parseInt(newValue) || newValue;
     $cell.addClass('modified-cell');
-    $('#saveBtn').show();
+    $('#manualPriceStockUpdateBtn').show();
   }
   const displayValue = field === 'salePrice' ? parseInt(newValue).toLocaleString() : newValue;
   $cell.text(displayValue).data('value', newValue);
@@ -133,7 +138,8 @@ function cancelEditing($cell, $input) {
 }
 
 // 6. 저장(일괄저장) 함수 (유저가 가격/재고 직접 수정)
-function saveModifications() {
+function manualPriceStockUpdate() {
+
   const modifiedProductCount = Object.keys(modifiedData).length;
   if (modifiedProductCount === 0) {
     alert('저장할 변경사항이 없습니다.');
@@ -142,37 +148,36 @@ function saveModifications() {
   if (!confirm(`${modifiedProductCount}개 상품의 변경사항을 저장하시겠습니까?`)) {
     return;
   }
-  $('#saveBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> 저장 중...');
 
-  // 실제 전송 데이터 구조 확실히 명시
-  const updateItems = Object.values(modifiedData).map(item => {
-    return {
-      code: item.code,
+  $('#manualPriceStockUpdateBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> 저장 중...');
+
+  // 실제 전송 데이터 구조 (DTO에 맞춰 명확!)
+  const requests = Object.values(modifiedData).map(item => ({
+    code: item.code,
+    priceChanged: item.hasOwnProperty('salePrice'),
+    stockChanged: item.hasOwnProperty('stock'),
+    productDto: { // 반드시 productDto라는 필드로 묶을 것
       salePrice: item.salePrice !== undefined ? item.salePrice : null,
       stock: item.stock !== undefined ? item.stock : null,
-      priceChanged: item.hasOwnProperty('salePrice'),
-      stockChanged: item.hasOwnProperty('stock'),
-      // 필요시 아래도 추가
       sellerProductId: item.sellerProductId,
       vendorItemId: item.vendorItemId,
       smartstoreId: item.smartstoreId,
       originProductNo: item.originProductNo,
       elevenstId: item.elevenstId
     }
-  });
-  const updateData = { updateItems }; // 서버의 bulk-update 컨트롤러 DTO에 맞춤
+  }));
 
   $.ajax({
-    url: '/products/bulk-update',
+    url: '/products/manual-price-stock-update',
     method: 'POST',
     contentType: 'application/json',
-    data: JSON.stringify(updateData),
+    data: JSON.stringify(requests), // 바로 배열로 보냄!
     success: function(response) {
       if (response.success) {
         showSaveIndicator('성공적으로 저장되었습니다.');
         modifiedData = {};
         $('.modified-cell').removeClass('modified-cell');
-        $('#saveBtn').hide();
+        $('#manualPriceStockUpdateBtn').hide();
       } else {
         alert('저장 실패: ' + response.message);
       }
@@ -181,10 +186,11 @@ function saveModifications() {
       alert('저장 중 오류가 발생했습니다: ' + error);
     },
     complete: function() {
-      $('#saveBtn').prop('disabled', false).html('<i class="fas fa-save"></i> 변경사항 저장');
+      $('#manualPriceStockUpdateBtn').prop('disabled', false).html('<i class="fas fa-save"></i> 변경사항 저장');
     }
   });
 }
+
 
 // 7. 저장 완료 안내
 function showSaveIndicator(message) {
@@ -316,7 +322,7 @@ $(document).ready(function() {
 
 
   // 일괄 가격/재고 업데이트
-  $('#calculatedPriceUpdateBtn').on('click', calculatedPriceUpdate);
+  $('#crawlAndPriceStockUpdateBtn').on('click', crawlAndPriceStockUpdate);
 
   // 셀 더블클릭 편집 진입
   $('.editable-cell').dblclick(function() {
@@ -324,7 +330,7 @@ $(document).ready(function() {
   });
 
   // 저장 버튼
-  $('#saveBtn').click(saveModifications);
+  $('#manualPriceStockUpdateBtn').click(manualPriceStockUpdate);
 
   // 필터 관련 (공급업체 등)
   updateActiveFilters();
@@ -521,7 +527,7 @@ $(document).ready(function() {
       $cell.addClass('modified-cell');
 
       // 저장 버튼 표시
-      $('#saveBtn').show();
+      $('#manualPriceStockUpdateBtn').show();
     }
 
     // 셀 내용 업데이트
@@ -545,7 +551,7 @@ $(document).ready(function() {
   /!**
    * 저장 버튼 클릭 이벤트
    *!/
-  $('#saveBtn').click(function() {
+  $('#manualPriceStockUpdateBtn').click(function() {
     const modifiedProductCount = Object.keys(modifiedData).length;
 
     if (modifiedProductCount === 0) {
@@ -583,7 +589,7 @@ $(document).ready(function() {
           $('.modified-cell').removeClass('modified-cell');
 
           // 저장 버튼 숨기기
-          $('#saveBtn').hide();
+          $('#manualPriceStockUpdateBtn').hide();
         } else {
           alert('저장 실패: ' + response.message);
         }
@@ -593,7 +599,7 @@ $(document).ready(function() {
       },
       complete: function() {
         // 로딩 해제
-        $('#saveBtn').prop('disabled', false).html('<i class="fas fa-save"></i> 변경사항 저장');
+        $('#manualPriceStockUpdateBtn').prop('disabled', false).html('<i class="fas fa-save"></i> 변경사항 저장');
       }
     });
   });

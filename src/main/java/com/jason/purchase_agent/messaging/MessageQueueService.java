@@ -91,6 +91,7 @@ public class MessageQueueService {
         StockUpdateMessage msg = StockUpdateMessage.builder()
                 .channel(channel)
                 .channelId(channelId)
+                .channelId2("cafe".equals(channel) ? mapping.getCafeOptCode() : null)
                 .batchId(batchId)
                 .productCode(product.getCode())
                 .stock(product.getStock())
@@ -111,6 +112,9 @@ public class MessageQueueService {
                 break;
             case "elevenst":
                 channelId = mapping.getElevenstId();
+                break;
+            case "cafe":
+                channelId = mapping.getCafeNo();
                 break;
             default:
                 channelId = null;

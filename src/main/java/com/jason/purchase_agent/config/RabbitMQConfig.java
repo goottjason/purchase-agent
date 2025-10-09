@@ -68,6 +68,8 @@ public class RabbitMQConfig {
         return new Queue("price-update-elevenst", true);
     }
     @Bean
+    public Queue priceUpdateCafeQueue() { return new Queue("price-update-cafe", true); }
+    @Bean
     public Queue stockUpdateCoupangQueue() {
         return new Queue("stock-update-coupang", true);
     }
@@ -80,5 +82,8 @@ public class RabbitMQConfig {
         return new Queue("stock-update-elevenst", true);
     }
     @Bean
+    public Queue stockUpdateCafeQueue() { return new Queue("stock-update-cafe", true); }
+    @Bean
     public Queue vendorItemIdSyncCoupangQueue() { return new Queue("vendoritemid-sync-coupang", true); }
+
 }

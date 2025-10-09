@@ -54,13 +54,4 @@ public class Category {
     @Column(name = "link", length = 500)
     private String link;
 
-    public void addChild(Category child) {
-        children.add(child);
-        child.setParent(this);
-    }
-
-    public void removeChild(Category child) {
-        children.remove(child);
-        child.setParent(null);
-    }
 }

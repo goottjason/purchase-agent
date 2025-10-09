@@ -67,5 +67,4 @@ public class AuthController {
         return "pages/forgot-password";
     }
 
-    // 로그아웃 요청 핸들링은 SecurityConfig에서 자동 처리함.
 }

@@ -107,6 +107,7 @@
       text-overflow: ellipsis;
       white-space: nowrap;
     }
+
     #statusTable td, #statusTable th {
       text-align: center;      /* 가로 가운데 정렬 */
       vertical-align: middle;  /* 세로 가운데 정렬 */
@@ -131,6 +132,45 @@
       color: #fff;
       border-color: #2563eb;
       outline:none;
+    }
+
+    /* 배치 총괄 row 스타일 */
+    .batch-summary-row {
+      background-color: #f8fafc;
+      font-weight: 600;
+      cursor: pointer;
+      border-left: 4px solid #3b82f6;
+    }
+
+    .batch-summary-row:hover {
+      background-color: #f1f5f9;
+    }
+
+    /* 개별 상품 row 스타일 */
+    .product-detail-row {
+      background-color: #ffffff;
+      display: none; /* 기본적으로 숨김 */
+    }
+
+    .product-detail-row.show {
+      display: table-row; /* 펼쳐진 상태 */
+    }
+
+    .product-detail-row td:first-child {
+      padding-left: 30px; /* 들여쓰기 */
+    }
+
+    /* 토글 아이콘 */
+    .toggle-icon {
+      display: inline-block;
+      width: 16px;
+      font-weight: bold;
+      transition: transform 0.2s;
+      color: #3b82f6;
+    }
+
+    .toggle-icon.expanded {
+      transform: rotate(90deg);
     }
   </style>
   <div class="container-fluid">

@@ -54,37 +54,6 @@ public interface CategoryRepository extends JpaRepository<Category, String> {
 
 
 
-
-    // 키워드 검색(name, link만 대상) + 경로 정렬
-    @Query("""
-        SELECT c
-        FROM Category c
-        WHERE (:keyword IS NULL OR :keyword = '' OR
-             LOWER(c.name) LIKE LOWER(CONCAT('%', :keyword, '%')) OR
-             LOWER(c.link) LIKE LOWER(CONCAT('%', :keyword, '%')))
-        ORDER BY c.path
-    """)
-    Page<Category> findCategoriesWithSearch(@Param("keyword") String keyword, Pageable pageable);
-
-
-    // 특정 부모 ID 하위(1 depth) 경로 정렬
-    List<Category> findByParentIdOrderByPath(String parentId);
-
-    // 특정 경로 하위 전체 개수(자기 자신 제외), 접두 충돌 방지 위해 '/%' 사용
-    @Query("""
-        SELECT COUNT(c)
-        FROM Category c
-        WHERE c.path LIKE CONCAT(:parentPath, '/%')
-        AND c.id <> :parentId
-    """)
-    Long countChildrenByPath(@Param("parentPath") String parentPath, @Param("parentId") String parentId);
-
-    // 전체를 경로 순으로
-    List<Category> findAllByOrderByPath();
-
-    // 부모 엔티티 기준 직계 자식
-    List<Category> findByParent(Category parent);
-
     // 부모 하위 customIdx 최댓값 (루트 포함)
     @Query("""
         SELECT MAX(c.customIdx)

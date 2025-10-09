@@ -36,8 +36,6 @@ public class AutoUpdateService {
     public void startAutoUpdate(
             String supplierCode, Integer marginRate, Integer couponRate, Integer minMarginPrice, String requestedBy
     ) {
-
-
         // [1] 배치ID 생성 (UUID)
         String batchId = UUID.randomUUID().toString();
 

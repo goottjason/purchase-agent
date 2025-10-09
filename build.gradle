@@ -75,7 +75,7 @@ dependencies {
 
     // === OAuth2 클라이언트 ===
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
-
+    implementation 'org.apache.commons:commons-csv:1.10.0'
     // === 테스트 ===
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.mybatis.spring.boot:mybatis-spring-boot-starter-test:3.0.5'

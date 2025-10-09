@@ -29,6 +29,12 @@ public class ProductChannelMapping {
     @Column(length = 40)
     private String originProductNo;   // 스마트스토어 원상품ID(API에서 실제 사용)
 
+    @Column(length = 50)
+    private String cafeNo;
+    @Column(length = 50)
+    private String cafeCode;
+    @Column(length = 50)
+    private String cafeOptCode;
 
 
     @Column(name = "created_at", updatable = false)
