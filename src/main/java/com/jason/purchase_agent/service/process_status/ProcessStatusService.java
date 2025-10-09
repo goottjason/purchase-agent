@@ -38,7 +38,14 @@ public class ProcessStatusService {
     // 단건 삭제
     @Transactional // 추가!
     public void deleteRow(String batchId, String productCode) {
-        psr.deleteByBatchIdAndProductCode(batchId, productCode);
+        log.info("이거 null 맞아? {}", productCode);
+        if (productCode != null && !productCode.isEmpty()) {
+            // 단건 삭제
+            psr.deleteByBatchIdAndProductCode(batchId, productCode);
+        } else {
+            // 배치 대표 row 및 하위 상품 전체 삭제
+            psr.deleteByBatchId(batchId);
+        }
     }
 
     // 전체 삭제

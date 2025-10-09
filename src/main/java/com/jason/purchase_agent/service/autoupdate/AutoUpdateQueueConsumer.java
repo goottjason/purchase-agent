@@ -1,7 +1,7 @@
 package com.jason.purchase_agent.service.autoupdate;
 
-import com.google.gson.Gson;
 import com.jason.purchase_agent.dto.autoupdate.AutoUpdateMessage;
+import com.jason.purchase_agent.dto.products.CrawlAndUpdateProductMessage;
 import com.jason.purchase_agent.dto.products.ProductDto;
 import com.jason.purchase_agent.external.iherb.dto.IherbProductDto;
 import com.jason.purchase_agent.entity.Product;
@@ -11,6 +11,7 @@ import com.jason.purchase_agent.external.coupang.CoupangApiService;
 import com.jason.purchase_agent.external.elevenst.ElevenstApiService;
 import com.jason.purchase_agent.external.smartstore.SmartstoreApiService;
 import com.jason.purchase_agent.external.iherb.IherbProductCrawler;
+import com.jason.purchase_agent.service.products.ProductService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
@@ -24,11 +25,45 @@ import static com.jason.purchase_agent.common.calculator.Calculator.calculateSal
 @RequiredArgsConstructor
 public class AutoUpdateQueueConsumer {
 
-    private final ProductRepository productRepo;
+    private final ProductService productService;
+    private final ProductRepository productRepository;
     private final ProcessStatusRepository psr;
     private final CoupangApiService coupangApiService;
     private final SmartstoreApiService smartstoreApiService;
     private final ElevenstApiService elevenstApiService;
+    private final IherbProductCrawler iherbProductCrawler;
+
+
+    @RabbitListener(queues = "crawl-and-update-product")
+    public void handleCrawlAndUpdateProduct(CrawlAndUpdateProductMessage msg) {
+
+        // (1) 크롤링하여 request 내부의 productDto에 가격/재고 세팅
+
+        ProductDto productDto = msg.getRequest().getProductDto();
+        Integer marginRate = msg.getMarginRate();
+        Integer couponRate = msg.getCouponRate();
+        Integer minMarginPrice = msg.getMinMarginPrice();
+        String batchId = msg.getBatchId();
+
+        String prodId = productRepository.findIherbProductIdFromLinkByCode(productDto.getLink());
+        String productJson = iherbProductCrawler.crawlProductAsJson(prodId);
+        IherbProductDto iherbProductDto = IherbProductDto.fromJsonWithLinks(productJson);
+        Integer salePrice = calculateSalePrice(
+                marginRate, couponRate, minMarginPrice, productDto, iherbProductDto);
+        Integer stock = Boolean.TRUE.equals(iherbProductDto.getIsAvailableToPurchase()) ? 500 : 0;
+
+        productDto.setSalePrice(salePrice);
+        productDto.setStock(stock);
+
+        // (2)
+        productService.updateSingleProductInBatch(
+                batchId, productDto.getCode(), productDto, true, true, false);
+    }
+
+
+
+
+
 
 
     /**
@@ -46,7 +81,7 @@ public class AutoUpdateQueueConsumer {
 
         try {
             // 2. (1) 링크에서 상품ID 추출하여 크롤링하여 json 반환
-            String prodId = productRepo.findIherbProductIdFromLinkByCode(prod.getLink());
+            String prodId = productRepository.findIherbProductIdFromLinkByCode(prod.getLink());
             String prodJson = IherbProductCrawler.crawlProductAsJson(prodId);
 
             // String 형태의 json -> IherbProductDto로 변환
@@ -64,13 +99,13 @@ public class AutoUpdateQueueConsumer {
             // 로그 업데이트
 
             // 2. (2) Product 테이블 반영
-            Product productEntity = productRepo.findById(prod.getCode())
+            Product productEntity = productRepository.findById(prod.getCode())
                     .orElseThrow(() -> new IllegalArgumentException("Not Found : " + prod.getCode()));
 
             if (productEntity != null) {
                 productEntity.setSalePrice(salePrice);
                 productEntity.setStock(stock);
-                productRepo.save(productEntity);
+                productRepository.save(productEntity);
 
                 // 로그 업데이트
                 psr.insert(msg.getBatchId(), prod.getCode(), prod.getTitle(),

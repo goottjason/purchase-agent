@@ -237,10 +237,14 @@ public class ProductsController {
             @RequestParam int minMarginPrice,
             @RequestBody List<ProductUpdateRequest> requests
     ) {
+        log.info("[crawlAndPriceStockUpdate] marginRate={}, couponRate={}, minMarginPrice={}, 요청건수={}",
+                marginRate, couponRate, minMarginPrice, requests.size());
         productService.crawlAndSetPriceStock(
                 marginRate, couponRate, minMarginPrice, requests);
+        log.info("[crawlAndPriceStockUpdate] crawlAndSetPriceStock 메서드 호출 완료");
 
         String targetBatchId = productService.updateProductsBatch(requests, null);
+        log.info("[crawlAndPriceStockUpdate] updateProductsBatch 메서드 호출 완료(targetBatchId={})", targetBatchId);
 
         return ResponseEntity.ok(Map.of(
                 "success", true,

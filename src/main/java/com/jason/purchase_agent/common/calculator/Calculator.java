@@ -2,7 +2,9 @@ package com.jason.purchase_agent.common.calculator;
 
 import com.jason.purchase_agent.external.iherb.dto.IherbProductDto;
 import com.jason.purchase_agent.dto.products.ProductDto;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 public class Calculator {
     public static Integer calculateSalePrice(
             Integer marginRate,
@@ -34,16 +36,14 @@ public class Calculator {
         // 4만원 미만은 배송비 추가
         if (totalBuyPrice < 40000) { totalBuyPrice += deliveryFee; }
 
-        //
-
         // 기본 계산
         Double basePrice = totalBuyPrice / ((100 - marginRate) / 100.0);
 
-        // 최소 마진 보장 계산 (각 채널 수수료와 제세금을 15%로 가정했을 때, 최소 minMarginPrice는 남아야 하는 가격)
-        Double minPrice = (totalBuyPrice + minMarginPrice) / ((100 - 12) * 100.0);
+        // 최소 마진 보장 계산 (각 채널 수수료와 제세금을 13%로 가정했을 때, 최소 minMarginPrice는 남아야 하는 가격)
+        Double minPrice = (totalBuyPrice + minMarginPrice) / ((100 - 13) * 100.0);
 
         // 최종 가격 결정
-        Integer salePrice = (int) Math.max(basePrice, minMarginPrice);
+        Integer salePrice = (int) Math.max(basePrice, minPrice);
 
         // xx,900원 변환
         salePrice = (int) ((Math.ceil(salePrice / 1000.0)) * 1000 - 100);

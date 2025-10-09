@@ -135,7 +135,9 @@ function formatMessage(message, batchId, productCode) {
         const channelName = {
           'coupang': '쿠팡',
           'smartstore': '스마트스토어',
-          'elevenst': '11번가'
+          'elevenst': '11번가',
+          'cafe': '카페24'
+
         }[channel] || channel;
 
         if (!Array.isArray(resultList)) resultList = [resultList];

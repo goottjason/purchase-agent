@@ -1,4 +1,5 @@
 package com.jason.purchase_agent.dto.products;
+import com.jason.purchase_agent.entity.Product;
 import lombok.*;
 
 import java.time.LocalDateTime;
@@ -40,5 +41,33 @@ public class ProductDto {
     private String cafeNo;
     private String cafeCode;
     private String cafeOptCode;
+
+    // 정적 메서드 추가 (직접 매핑)
+    public static ProductDto fromEntity(Product product) {
+        return ProductDto.builder()
+                .code(product.getCode())
+                .supplierCode(String.valueOf(product.getSupplier()))
+                .link(product.getLink())
+                .title(product.getTitle())
+                .korName(product.getKorName())
+                .engName(product.getEngName())
+                .unitValue(product.getUnitValue())
+                .unit(product.getUnit())
+                .weight(product.getWeight())
+                .buyPrice(product.getBuyPrice())
+                .shippingCost(product.getShippingCost())
+                .detailsHtml(product.getDetailsHtml())
+                .packQty(product.getPackQty())
+                .salePrice(product.getSalePrice())
+                .stock(product.getStock())
+                .marginRate(product.getMarginRate())
+                .imageLink(product.getImageLinks())
+                .uploadedImageLink(product.getUploadedImageLinks())
+                .productType(product.getProductType())
+                .memo(product.getMemo())
+                .brandName(product.getBrandName())
+                // 채널 매핑 필드는 필요 시 별도 세팅
+                .build();
+    }
 
 }

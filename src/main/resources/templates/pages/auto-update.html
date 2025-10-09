@@ -24,7 +24,8 @@
             <!-- 1. 공급업체 셀렉트박스 (supplier_name) -->
             <div class="col-auto">
               <label for="supplierSelect">공급업체:</label>
-              <select id="supplierSelect" name="supplierId" class="form-control">
+              <select id="supplierSelect" name="supplierCode" class="form-control">
+                <option value="IHB">아이허브</option>
                 <!-- 서버에서 supplier 리스트 받아서 options 추가 -->
                 <!-- <option value="1">한국유통</option> <option value="2">비타코스트</option> -->
               </select>
@@ -46,19 +47,7 @@
             </div>
             <!-- 3. 진행버튼 -->
             <div class="col-auto">
-              <button type="submit" id="updateBtn" class="btn btn-primary">자동 가격/재고 업데이트 진행</button>
-            </div>
-          </div>
-          <div class="form-row mt-3">
-            <!-- 4. 총 구매가격 입력박스/안내문구 -->
-            <div class="col-auto">
-              <label for="totalPurchaseInput">총 구매가격(원):</label>
-              <input type="number" id="totalPurchaseInput" class="form-control" placeholder="구매가격 입력" value="30000">
-            </div>
-            <div class="col-auto align-self-center">
-          <span id="priceEstimateMsg" class="font-weight-bold text-success ml-2">
-            예상 판매가격은 [ ] 원입니다.
-          </span>
+              <button type="submit" id="updateBtn" class="btn btn-success">자동 가격/재고 업데이트 진행</button>
             </div>
           </div>
         </form>

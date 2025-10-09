@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.jason.purchase_agent.util.salechannelapi.smartstore.SmartstoreApiUtil;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
+import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Value;
@@ -181,6 +182,7 @@ public class CafeApiService {
     }
 
     // 공통 PUT 요청 처리 메서드
+    @Synchronized
     private String executePutRequest(String method, String path, String requestBody) {
         try {
             // 전체 API URL 생성
@@ -214,6 +216,8 @@ public class CafeApiService {
             while ((line = br.readLine()) != null) {
                 response.append(line);
             }
+
+            try { Thread.sleep(350); } catch (InterruptedException ignore) {}
 
             // 결과 출력 (디버깅용)
             /*System.out.println("●Cafe24 : path: " + path);
@@ -260,6 +264,7 @@ public class CafeApiService {
             return "{}";
         }
     }
+
     public String updateStock(
             String cafeNo, String cafeOptCode, Integer stock
     ) {

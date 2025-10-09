@@ -478,23 +478,34 @@ public class ProductService {
     public void crawlAndSetPriceStock (
             int marginRate, int couponRate, int minMarginPrice, List<ProductUpdateRequest> requests
     ) {
+        log.info("[crawlAndSetPriceStock] 호출 시작: marginRate={}, couponRate={}, minMarginPrice={}, 요청건수={}",
+                marginRate, couponRate, minMarginPrice, requests.size());
         for (ProductUpdateRequest request : requests) {
+            // 크롤링 및 가격/재고 계산
+            ProductDto productDto = request.getProductDto();
             try {
-                // 크롤링 및 가격/재고 계산
-                ProductDto productDto = request.getProductDto();
-                String prodId = productRepository.findIherbProductIdFromLinkByCode(productDto.getLink());
+                log.info("[crawlAndSetPriceStock] 상품 처리 시작: code={}", productDto.getCode());
+                String prodId = productRepository.findIherbProductIdFromLinkByCode(productDto.getCode());
                 String productJson = iherbProductCrawler.crawlProductAsJson(prodId);
+                log.debug("[crawlAndSetPriceStock] iHerb 상품 크롤링 완료: prodId={}", prodId);
+
                 IherbProductDto iherbProductDto = IherbProductDto.fromJsonWithLinks(productJson);
+                log.debug("[crawlAndSetPriceStock] iHerbProductDto 변환 완료: iherbProductDto={}", iherbProductDto);
 
                 Integer salePrice = calculateSalePrice(
                         marginRate, couponRate, minMarginPrice, productDto, iherbProductDto);
                 Integer stock = Boolean.TRUE.equals(iherbProductDto.getIsAvailableToPurchase()) ? 500 : 0;
-
+                log.info("[crawlAndSetPriceStock] 계산 결과: code={}, salePrice={}, stock={}",
+                        productDto.getCode(), salePrice, stock);
                 productDto.setSalePrice(salePrice);
                 productDto.setStock(stock);
             } catch (Exception ex) {
+                log.error("[crawlAndSetPriceStock] 처리 실패: code={}, error={}",
+                        productDto.getCode(), ex.toString());
+
             }
         }
+        log.info("[crawlAndSetPriceStock] 전체 상품 처리 완료");
     }
 
     @Transactional
@@ -522,6 +533,94 @@ public class ProductService {
 
         updateProductsBatch(requests, null);
     }
+
+    public List<ProductUpdateRequest> makeUpdateRequestsBySupplier(
+            String supplierCode
+    ) {
+        List<Product> products = productRepository.findBySupplier_SupplierCode(supplierCode);
+
+        // 상품별로 채널 매핑 정보 불러와서 ProductDto에 세팅
+        return products.stream().map(prod -> {
+            ProductDto dto = ProductDto.fromEntity(prod);
+
+            // 예: 채널 매핑 정보를 불러서 DTO에 세팅
+            Optional<ProductChannelMapping> mapping = channelMappingRepository.findByProductCode(prod.getCode());
+
+            if (mapping.isPresent()) {
+                ProductChannelMapping map = mapping.get();
+                dto.setVendorItemId(map.getVendorItemId());
+                dto.setSellerProductId(map.getSellerProductId());
+                dto.setSmartstoreId(map.getSmartstoreId());
+                dto.setOriginProductNo(map.getOriginProductNo());
+                dto.setElevenstId(map.getElevenstId());
+                dto.setCafeNo(map.getCafeNo());
+                dto.setCafeCode(map.getCafeCode());
+                dto.setCafeOptCode(map.getCafeOptCode());
+                // 필요에 따라 DTO에 추가 필드 세팅
+            }
+
+            return ProductUpdateRequest.builder()
+                    .code(prod.getCode())
+                    .productDto(dto)
+                    .priceChanged(true)
+                    .stockChanged(true)
+                    .build();
+        }).toList();
+    }
+
+    public void crawlAndUpdateProductsIndividually(
+            Integer marginRate,
+            Integer couponRate,
+            Integer minMarginPrice,
+            List<ProductUpdateRequest> requests
+    ) {
+        for (ProductUpdateRequest request : requests) {
+            try {
+                // 1. 크롤링 (외부 API 호출)
+                ProductDto productDto = request.getProductDto();
+                String prodId = productRepository.findIherbProductIdFromLinkByCode(productDto.getLink());
+                String productJson = iherbProductCrawler.crawlProductAsJson(prodId);
+                IherbProductDto iherbProductDto = IherbProductDto.fromJsonWithLinks(productJson);
+
+                Integer salePrice = calculateSalePrice(
+                        marginRate, couponRate, minMarginPrice, productDto, iherbProductDto);
+                Integer stock = Boolean.TRUE.equals(iherbProductDto.getIsAvailableToPurchase()) ? 500 : 0;
+
+                productDto.setSalePrice(salePrice);
+                productDto.setStock(stock);
+
+                String batchId = UUID.randomUUID().toString();
+                // 2. 단일 상품 업데이트(RabbitMQ 등 메시지 발행 또는 DB 처리)
+                updateSingleProductInBatch(batchId, request.getCode(), request.getProductDto(),
+                        request.isPriceChanged(), request.isStockChanged(), false);
+
+                // 3. (선택) 크롤링 간 간단한 delay 추가 (봇 감지 방지)
+                Thread.sleep(200); // 0.2초 지연 (Case/SLA에 따라 조정)
+            } catch (Exception ex) {
+                log.error("[crawlAndUpdateProductsIndividually] 처리 실패: code={}, error={}", request.getCode(), ex.toString());
+            }
+        }
+    }
+
+    public void enqueueProductBatchUpdate(
+            Integer marginRate, Integer couponRate, Integer minMarginPrice,
+            List<ProductUpdateRequest> requests
+    ) {
+        String batchId = UUID.randomUUID().toString();
+
+        String batchInitMsg = String.format("%d개 상품 비동기 배치 시작", requests.size());
+        pss.upsertProcessStatus(batchId, null, createBatchSummaryDetails(requests),
+                "BATCH_UPDATE", "PENDING", batchInitMsg);
+
+        // 각 상품을 큐 메시지(Task 객체)로 발행
+        for (ProductUpdateRequest request : requests) {
+            messageQueueService.publishCrawlAndUpdateProduct(batchId, request, marginRate, couponRate, minMarginPrice);
+        }
+
+        pss.upsertProcessStatus(batchId, null, null,
+                "BATCH_UPDATE", "SUCCESS", "배치 완료");
+    }
+
 
     /**
      * 실패 이력 복원용 임시 DTO.
@@ -625,6 +724,7 @@ public class ProductService {
             boolean priceChanged, boolean stockChanged, boolean isRetry
     ) {
         log.info("[Batch][Item] 상품 처리 시작 - batchId={}, code={}", batchId, code);
+        log.info("{}, {}, {}, {}", productDto, priceChanged, stockChanged, isRetry);
 
         String detailsJson = null;
 
@@ -661,7 +761,7 @@ public class ProductService {
                     "DB_SAVE", "SUCCESS", "상품 정보 DB 저장 완료");
         } catch (Exception ex) {
             log.error("[Batch][Item] 상품 처리 실패 - batchId={}, code={}, 원인={}",
-                    batchId, code, ex.getMessage(), ex);
+                    batchId, code, ex.getMessage());
             pss.upsertProcessStatus(batchId, code, null,
                     "DB_SAVE", "FAILED", ex.getMessage());
             throw ex; // 트랜잭션 롤백 (REQUIRES_NEW이므로 이 상품만)
@@ -724,5 +824,93 @@ public class ProductService {
             return "{}";
         }
     }
+
+
+
+
+
+
+
+
+
+
+
+
+    @Transactional(rollbackFor = Exception.class)
+    public String crawlAndUpdateProductsBatch(
+            List<ProductUpdateRequest> requests, String batchId
+    ) {
+        boolean isRetry = (batchId != null && !batchId.isEmpty());
+
+        // (1) batchId 생성 (최초) 또는 재사용 (재시도)
+        if (!isRetry) {
+            batchId = UUID.randomUUID().toString();
+            log.info("[Batch] 새 배치 시작 - batchId={}, 총 상품 수={}", batchId, requests.size());
+        } else {
+            log.info("[Batch] 배치 재시도 - batchId={}, 총 상품 수={}", batchId, requests.size());
+        }
+
+        // (2) 배치 총괄 상태 초기화 (productCode = null)
+        String batchInitMsg = String.format("총 %d개 상품 업데이트 시작", requests.size());
+        pss.upsertProcessStatus(batchId, null, createBatchSummaryDetails(requests),
+                "BATCH_UPDATE", "PENDING", batchInitMsg);
+
+        // (3) 각 상품별 개별 처리
+        int successCount = 0;
+        int failCount = 0;
+        List<String> failedCodes = new ArrayList<>();
+
+        for (ProductUpdateRequest request : requests) {
+            try {
+                updateSingleProductInBatch(batchId, request.getCode(), request.getProductDto(),
+                        request.isPriceChanged(), request.isStockChanged(), isRetry);
+                successCount++;
+
+                // (4) 진행상황 업데이트 (총괄 row)
+                String batchStatusMsg = String.format("%d/%d개 상품 처리 완료 (실패: %d)",
+                        successCount + failCount, requests.size(), failCount);
+                pss.upsertProcessStatus(batchId, null,  null,
+                        "BATCH_UPDATE", "IN_PROGRESS", batchStatusMsg);
+
+            } catch (Exception ex) {
+                failCount++;
+                failedCodes.add(request.getCode());
+                log.error("[Batch] 상품 처리 실패 - batchId={}, code={}, 원인={}",
+                        batchId, request.getCode(), ex.getMessage());
+
+                // 개별 상품 실패는 배치 전체를 중단하지 않음
+                String batchStatusMsg = String.format("%d/%d개 상품 처리 완료 (실패: %d)",
+                        successCount + failCount, requests.size(), failCount);
+
+                pss.upsertProcessStatus(batchId, null, null,
+                        "BATCH_UPDATE", "IN_PROGRESS", batchStatusMsg);
+            }
+        }
+
+        // (5) 배치 최종 상태 업데이트
+        String finalStatus = (failCount == 0) ? "SUCCESS" :
+                (successCount == 0) ? "FAILED" : "PARTIAL_SUCCESS";
+        String finalMessage = String.format("완료: %d/%d (실패: %d)",
+                successCount, requests.size(), failCount);
+
+        pss.upsertProcessStatus(batchId, null, null,
+                "BATCH_UPDATE", finalStatus, finalMessage);
+        log.info("[Batch] 배치 완료 - batchId={}, 성공={}, 실패={}, 실패코드={}",
+                batchId, successCount, failCount, failedCodes);
+        return batchId;
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 }

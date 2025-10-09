@@ -19,6 +19,7 @@ public interface ProcessStatusRepository extends JpaRepository<ProcessStatus, Lo
 
     void deleteByBatchIdAndProductCode(String batchId, String productCode);
 
+    void deleteByBatchId(String batchId);
 
     // 배치ID + 상품코드 기준 단일 조회
     @Lock(LockModeType.PESSIMISTIC_WRITE)

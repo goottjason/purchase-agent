@@ -92,4 +92,5 @@ public interface ProductRepository extends JpaRepository<Product, String> {
 
     @Query("SELECT COALESCE(MAX(CAST(SUBSTRING(p.code, 9, 3) AS int)), 0) FROM Product p WHERE p.code LIKE :prefix%")
     int findMaxSeqByCodePrefix(@Param("prefix") String prefix);
+
 }

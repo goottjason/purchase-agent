@@ -3,12 +3,9 @@ package com.jason.purchase_agent.messaging;
 import com.jason.purchase_agent.dto.autoupdate.AutoUpdateMessage;
 import com.jason.purchase_agent.dto.product_registration.ProductRegistrationMessage;
 import com.jason.purchase_agent.dto.product_registration.ProductRegistrationRetryMessage;
-import com.jason.purchase_agent.dto.products.PriceUpdateMessage;
-import com.jason.purchase_agent.dto.products.StockUpdateMessage;
-import com.jason.purchase_agent.dto.products.VendorItemIdSyncMessage;
+import com.jason.purchase_agent.dto.products.*;
 import com.jason.purchase_agent.entity.Product;
 import com.jason.purchase_agent.entity.ProductChannelMapping;
-import com.jason.purchase_agent.dto.products.BatchAutoPriceStockUpdateMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.core.AmqpTemplate;
@@ -29,6 +26,21 @@ public class MessageQueueService {
             "products.batch_manual_price_stock_update_queue";
 
 
+
+    public void publishCrawlAndUpdateProduct(
+            String batchId, ProductUpdateRequest request,
+            Integer marginRate, Integer couponRate, Integer minMarginPrice
+    ) {
+        CrawlAndUpdateProductMessage msg = CrawlAndUpdateProductMessage.builder()
+                .batchId(batchId)
+                .request(request)
+                .marginRate(marginRate)
+                .couponRate(couponRate)
+                .minMarginPrice(minMarginPrice)
+                .build();
+
+        rabbitTemplate.convertAndSend("crawl-and-update-product", msg);
+    }
 
     /**
      * vendorItemId가 없는 경우, vendorItemId 조회/동기화 메시지를 큐로 발행
