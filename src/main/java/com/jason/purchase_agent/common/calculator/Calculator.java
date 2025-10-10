@@ -10,7 +10,7 @@ public class Calculator {
             Integer marginRate,
             Integer couponRate,
             Integer minMarginPrice,
-            ProductDto product,
+            Integer packQty,
             IherbProductDto dto) {
 
         // 현재 상품 자체에서 할인중인 할인율
@@ -32,7 +32,7 @@ public class Calculator {
         }
 
         Integer deliveryFee = 6000;
-        Double totalBuyPrice = buyPrice * product.getPackQty();
+        Double totalBuyPrice = buyPrice * packQty;
         // 4만원 미만은 배송비 추가
         if (totalBuyPrice < 40000) { totalBuyPrice += deliveryFee; }
 

@@ -2,7 +2,9 @@ package com.jason.purchase_agent.external.elevenst;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.dataformat.xml.XmlMapper;
+import com.jason.purchase_agent.dto.products.PriceUpdateChannelMessage;
 import com.jason.purchase_agent.dto.products.PriceUpdateMessage;
+import com.jason.purchase_agent.dto.products.StockUpdateChannelMessage;
 import com.jason.purchase_agent.dto.products.StockUpdateMessage;
 import com.jason.purchase_agent.service.process_status.ProcessStatusService;
 import lombok.RequiredArgsConstructor;
@@ -21,14 +23,11 @@ public class ElevenstUpdateConsumer {
     private final ElevenstApiService elevenstApiService;
     private final ProcessStatusService processStatusService;
 
-    @RabbitListener(queues = "price-update-elevenst")
-    public void handlePriceUpdate(PriceUpdateMessage msg) {
-        log.info("[MQ][Elevenst][PriceUpdate] 메시지 수신 - {}", msg);
+    @RabbitListener(queues = "price-update-elevenst", concurrency = "1")
+    public void handlePriceUpdate(PriceUpdateChannelMessage msg) {
 
         try {
-            log.info("[ElevenstAPI][Price] 가격 변경 API 호출 시작 - channelId={}, salePrice={}", msg.getChannelId(), msg.getSalePrice());
-
-            String responseXml = elevenstApiService.updatePrice(msg.getChannelId(), msg.getSalePrice());
+            String responseXml = elevenstApiService.updatePrice(msg.getChannelId1(), msg.getSalePrice());
 
             XmlMapper xmlMapper = new XmlMapper();
             Map<String, Object> xmlResult = xmlMapper.readValue(responseXml, Map.class);
@@ -46,25 +45,18 @@ public class ElevenstUpdateConsumer {
             Map<String, Object> channelResult = new HashMap<>();
             if (findSuccess) {
                 channelResult.put("status", "SUCCESS");
-                channelResult.put("message", String.format("가격: %,d원, ID: %s", msg.getSalePrice(), msg.getChannelId()));
+                channelResult.put("message", String.format("가격: %,d원, ID: %s", msg.getSalePrice(), msg.getChannelId1()));
             } else {
                 channelResult.put("status", "FAIL");
                 channelResult.put("message", code + " : " + returnedMessage);
             }
 
-            log.info("[Elevenst][PriceUpdate] 상태 병합 시작 - batchId={}, productCode={}, status={}",
-                    msg.getBatchId(), msg.getProductCode(), channelResult.get("status"));
-
             processStatusService.mergeChannelResult(
                     msg.getBatchId(), msg.getProductCode(), "elevenst", channelResult
             );
-            log.debug("[Elevenst][Price] 병합 완료");
 
             try { Thread.sleep(100); } catch (InterruptedException ignored) {}
-            log.debug("[MQ][Elevenst][PriceUpdate] 처리 후 Thread.sleep(100ms)");
-
         } catch (Exception e) {
-            log.error("[MQ][Elevenst][PriceUpdate] 처리 중 예외! - batchId={}, productCode={}, 원인={}", msg.getBatchId(), msg.getProductCode(), e.getMessage(), e);
 
             Map<String, Object> channelResult = new HashMap<>();
             channelResult.put("status", "FAIL");
@@ -78,14 +70,14 @@ public class ElevenstUpdateConsumer {
         }
     }
 
-    @RabbitListener(queues = "stock-update-elevenst")
-    public void handleStockUpdate(StockUpdateMessage msg) {
+    @RabbitListener(queues = "stock-update-elevenst", concurrency = "1")
+    public void handleStockUpdate(StockUpdateChannelMessage msg) {
         log.info("[MQ][Elevenst][StockUpdate] 메시지 수신 - {}", msg);
 
         try {
-            log.info("[ElevenstAPI][Stock] 재고 변경 API 호출 시작 - channelId={}, stock={}", msg.getChannelId(), msg.getStock());
+            log.info("[ElevenstAPI][Stock] 재고 변경 API 호출 시작 - channelId={}, stock={}", msg.getChannelId1(), msg.getStock());
 
-            String responseXml = elevenstApiService.updateStock(msg.getChannelId(), msg.getStock());
+            String responseXml = elevenstApiService.updateStock(msg.getChannelId1(), msg.getStock());
             XmlMapper xmlMapper = new XmlMapper();
             Map<String, Object> xmlResult = xmlMapper.readValue(responseXml, Map.class);
 
@@ -103,7 +95,7 @@ public class ElevenstUpdateConsumer {
             Map<String, Object> channelResult = new HashMap<>();
             if (findSuccess) {
                 channelResult.put("status", "SUCCESS");
-                channelResult.put("message", String.format("재고: %,d개, ID: %s", msg.getStock(), msg.getChannelId()));
+                channelResult.put("message", String.format("재고: %,d개, ID: %s", msg.getStock(), msg.getChannelId1()));
             } else {
                 channelResult.put("status", "FAIL");
                 channelResult.put("message", code + " : " + returnedMessage);

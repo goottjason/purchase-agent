@@ -85,5 +85,9 @@ public class RabbitMQConfig {
     public Queue stockUpdateCafeQueue() { return new Queue("stock-update-cafe", true); }
     @Bean
     public Queue vendorItemIdSyncCoupangQueue() { return new Queue("vendoritemid-sync-coupang", true); }
+    @Bean
+    public Queue crawlAndUpdateEachProductBySupplierQueue() {
+        return new Queue("crawl-and-update-each-product-by-supplier", true);
+    }
 
 }

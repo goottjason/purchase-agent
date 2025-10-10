@@ -115,7 +115,7 @@ public class IherbProductCrawler {
 
         while (retryCount <= maxRetries) {
             String url = "https://catalog.app.iherb.com/product/" + productId;
-            log.info("Fetching URL: " + url);
+            // log.info("Fetching URL: " + url);
 
             Request request = new Request.Builder()
                     .url(url)

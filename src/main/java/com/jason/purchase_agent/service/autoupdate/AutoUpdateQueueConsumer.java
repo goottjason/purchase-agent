@@ -1,7 +1,7 @@
 package com.jason.purchase_agent.service.autoupdate;
 
 import com.jason.purchase_agent.dto.autoupdate.AutoUpdateMessage;
-import com.jason.purchase_agent.dto.products.CrawlAndUpdateProductMessage;
+import com.jason.purchase_agent.dto.products.CrawlAndUpdateEachProductBySupplierMessage;
 import com.jason.purchase_agent.dto.products.ProductDto;
 import com.jason.purchase_agent.external.iherb.dto.IherbProductDto;
 import com.jason.purchase_agent.entity.Product;
@@ -11,16 +11,22 @@ import com.jason.purchase_agent.external.coupang.CoupangApiService;
 import com.jason.purchase_agent.external.elevenst.ElevenstApiService;
 import com.jason.purchase_agent.external.smartstore.SmartstoreApiService;
 import com.jason.purchase_agent.external.iherb.IherbProductCrawler;
+import com.jason.purchase_agent.service.process_status.ProcessStatusService;
 import com.jason.purchase_agent.service.products.ProductService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.AmqpRejectAndDontRequeueException;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 import static com.jason.purchase_agent.common.calculator.Calculator.calculateSalePrice;
 
 /**
  * MQ Consumer 역할 (자동 가격/재고 업데이트 메시지 처리)
  */
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class AutoUpdateQueueConsumer {
@@ -28,42 +34,47 @@ public class AutoUpdateQueueConsumer {
     private final ProductService productService;
     private final ProductRepository productRepository;
     private final ProcessStatusRepository psr;
+    private final ProcessStatusService pss;
     private final CoupangApiService coupangApiService;
     private final SmartstoreApiService smartstoreApiService;
     private final ElevenstApiService elevenstApiService;
     private final IherbProductCrawler iherbProductCrawler;
 
 
-    @RabbitListener(queues = "crawl-and-update-product")
-    public void handleCrawlAndUpdateProduct(CrawlAndUpdateProductMessage msg) {
+    // 한 개의 상품에 대한 로직
+    @RabbitListener(queues = "crawl-and-update-each-product-by-supplier", concurrency = "1")
+    @Transactional(propagation = Propagation.REQUIRED)
+    public void handleCrawlAndUpdateEachProductBySupplier(
+            CrawlAndUpdateEachProductBySupplierMessage msg
+    ) {
+        try {
+            // 메세지 필드 변수화
+            ProductDto productDto = msg.getProductDto();
+            Integer marginRate = msg.getMarginRate();
+            Integer couponRate = msg.getCouponRate();
+            Integer minMarginPrice = msg.getMinMarginPrice();
+            String batchId = msg.getBatchId();
 
-        // (1) 크롤링하여 request 내부의 productDto에 가격/재고 세팅
+            // (1) 크롤링하여 productDto에 가격/재고 세팅
+            productService.crawlAndSetPriceStock(productDto, marginRate, couponRate, minMarginPrice);
+            log.info("[{}] 크롤링 완료", productDto.getCode());
+            pss.upsertProcessStatus(batchId, productDto.getCode(), null,
+                    "UPDATE_PRODUCT_CRAWL", "SUCCESS", "크롤링 성공");
 
-        ProductDto productDto = msg.getRequest().getProductDto();
-        Integer marginRate = msg.getMarginRate();
-        Integer couponRate = msg.getCouponRate();
-        Integer minMarginPrice = msg.getMinMarginPrice();
-        String batchId = msg.getBatchId();
+            // (2) DB에 저장
+            productService.saveProductAndMapping(productDto);
+            log.info("[{}] DB 저장 완료", productDto.getCode());
+            pss.upsertProcessStatus(batchId, productDto.getCode(), null,
+                    "UPDATE_PRODUCT_SAVE", "SUCCESS", "DB저장 성공");
 
-        String prodId = productRepository.findIherbProductIdFromLinkByCode(productDto.getLink());
-        String productJson = iherbProductCrawler.crawlProductAsJson(prodId);
-        IherbProductDto iherbProductDto = IherbProductDto.fromJsonWithLinks(productJson);
-        Integer salePrice = calculateSalePrice(
-                marginRate, couponRate, minMarginPrice, productDto, iherbProductDto);
-        Integer stock = Boolean.TRUE.equals(iherbProductDto.getIsAvailableToPurchase()) ? 500 : 0;
-
-        productDto.setSalePrice(salePrice);
-        productDto.setStock(stock);
-
-        // (2)
-        productService.updateSingleProductInBatch(
-                batchId, productDto.getCode(), productDto, true, true, false);
+            // (3) 각 채널 메세지 발행
+            productService.publishChannelUpdates(batchId, productDto, true, true);
+            pss.upsertProcessStatus(batchId, productDto.getCode(), null,
+                    "UPDATE_PRODUCT_PUBLISH", "SUCCESS", "각 채널 메세지 발행 성공");
+        } catch (Exception e) {
+            throw new AmqpRejectAndDontRequeueException("MQ 폐기(파싱 실패)", e);
+        }
     }
-
-
-
-
-
 
 
     /**
@@ -91,7 +102,7 @@ public class AutoUpdateQueueConsumer {
                     msg.getMarginRate(),
                     msg.getCouponRate(),
                     msg.getMinMarginPrice(),
-                    msg.getProductDto(),
+                    msg.getProductDto().getPackQty(),
                     iherbDto);
             Boolean isStock = iherbDto.getIsAvailableToPurchase();
             Integer stock = isStock ? 498 : 0;

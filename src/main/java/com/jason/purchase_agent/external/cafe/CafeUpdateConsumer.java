@@ -1,7 +1,9 @@
 package com.jason.purchase_agent.external.cafe;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.jason.purchase_agent.dto.products.PriceUpdateChannelMessage;
 import com.jason.purchase_agent.dto.products.PriceUpdateMessage;
+import com.jason.purchase_agent.dto.products.StockUpdateChannelMessage;
 import com.jason.purchase_agent.dto.products.StockUpdateMessage;
 import com.jason.purchase_agent.service.process_status.ProcessStatusService;
 import lombok.RequiredArgsConstructor;
@@ -22,14 +24,14 @@ public class CafeUpdateConsumer {
     private final CafeApiService cafeApiService;
     private final ProcessStatusService processStatusService;
 
-    @RabbitListener(queues = "price-update-cafe")
-    public void handlePriceUpdate(PriceUpdateMessage msg) {
+    @RabbitListener(queues = "price-update-cafe", concurrency = "1")
+    public void handlePriceUpdate(PriceUpdateChannelMessage msg) {
         log.info("[MQ][Cafe][PriceUpdate] 메시지 수신 - {}", msg);
 
         try {
             log.info("[Cafe][Price] 가격 변경 API 호출 시작 - channelId={}, salePrice={}",
-                    msg.getChannelId(), msg.getSalePrice());
-            String responseJson = cafeApiService.updatePrice(msg.getChannelId(), msg.getProductCode(), msg.getSalePrice());
+                    msg.getChannelId1(), msg.getSalePrice());
+            String responseJson = cafeApiService.updatePrice(msg.getChannelId1(), msg.getProductCode(), msg.getSalePrice());
             JsonNode root = objectMapper.readTree(responseJson);
 
             String status;
@@ -37,7 +39,7 @@ public class CafeUpdateConsumer {
             if (root.has("product")) {
                 // 성공 케이스
                 status = "SUCCESS";
-                returnedMessage = String.format("가격: %,d원, ID: %s", msg.getSalePrice(), msg.getChannelId());
+                returnedMessage = String.format("가격: %,d원, ID: %s", msg.getSalePrice(), msg.getChannelId1());
             } else if (root.has("error")) {
                 // 실패 케이스
                 JsonNode errorNode = root.path("error");
@@ -81,15 +83,15 @@ public class CafeUpdateConsumer {
             throw new AmqpRejectAndDontRequeueException("MQ 폐기(파싱 실패)", e);
         }
     }
-    @RabbitListener(queues = "stock-update-cafe")
-    public void handleStockUpdate(StockUpdateMessage msg) {
+    @RabbitListener(queues = "stock-update-cafe", concurrency = "1")
+    public void handleStockUpdate(StockUpdateChannelMessage msg) {
         log.info("[MQ][Cafe][StockUpdate] 메시지 수신 - {}", msg);
 
         try {
             log.info("[Cafe][Stock] 재고 변경 API 호출 시작 - channelId={}, channelId2={}, stock={}",
-                    msg.getChannelId(), msg.getChannelId2(), msg.getStock());
+                    msg.getChannelId1(), msg.getChannelId2(), msg.getStock());
             String responseJson = cafeApiService.updateStock(
-                    msg.getChannelId(), msg.getChannelId2(), msg.getStock()
+                    msg.getChannelId1(), msg.getChannelId2(), msg.getStock()
             );
             JsonNode root = objectMapper.readTree(responseJson);
 
@@ -100,7 +102,7 @@ public class CafeUpdateConsumer {
                 // 성공 케이스
                 status = "SUCCESS";
                 returnedMessage = String.format("재고: %,d개, ID: %s / %s",
-                        msg.getStock(), msg.getChannelId(), msg.getChannelId2());
+                        msg.getStock(), msg.getChannelId1(), msg.getChannelId2());
             } else if (root.has("error")) {
                 // 실패 케이스
                 JsonNode errorNode = root.path("error");

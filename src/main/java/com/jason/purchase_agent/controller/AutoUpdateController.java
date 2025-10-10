@@ -1,11 +1,6 @@
 package com.jason.purchase_agent.controller;
 
 import com.jason.purchase_agent.dto.products.ProductUpdateRequest;
-import com.jason.purchase_agent.dto.suppliers.SupplierDto;
-import com.jason.purchase_agent.entity.Product;
-import com.jason.purchase_agent.entity.Supplier;
-import com.jason.purchase_agent.repository.jpa.SupplierRepository;
-import com.jason.purchase_agent.service.autoupdate.AutoUpdateService;
 import com.jason.purchase_agent.service.products.ProductService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,23 +15,28 @@ import java.util.stream.Collectors;
 @RestController
 @RequiredArgsConstructor
 public class AutoUpdateController {
-
     private final ProductService productService;
 
-
-    // AJAX로 배치업데이트 실행 (서버에서 비동기 메시지 발행)
     @PostMapping("/auto-update/run")
-    public ResponseEntity<?> runAutoUpdate (
+    public ResponseEntity<?> crawlAndUpdateBySupplier (
             @RequestParam Integer marginRate,
             @RequestParam Integer couponRate,
             @RequestParam Integer minMarginPrice,
             @RequestParam String supplierCode
     ) {
-        List<ProductUpdateRequest> requests = productService.makeUpdateRequestsBySupplier(supplierCode);
+        // IHB 상품만 모아서 ProductUpdateRequest 리스트로 반환
+        // Product, Mapping 테이블 필드값 전부 productDto에 세팅완료
+        List<ProductUpdateRequest> requests = productService.makeRequestsBySupplier(supplierCode);
 
-        // [비동기] 메시지 큐(RabbitMQ 등)에 배치 등록 (예시)
-        productService.enqueueProductBatchUpdate(marginRate, couponRate, minMarginPrice, requests);
+        // 원하는 상품만 code로 필터
+        List<ProductUpdateRequest> filteredRequests = requests.stream()
+                .filter(req -> "201203IHB006".equals(req.getProductDto().getCode()))
+                .collect(Collectors.toList());
 
+        // 각 상품별 메세지 발행
+        // productService.crawlAndUpdateBySupplier(marginRate, couponRate, minMarginPrice, requests);
+        // log.info("filteredRequests: {}", filteredRequests);
+        productService.crawlAndUpdateBySupplier(marginRate, couponRate, minMarginPrice, filteredRequests);
 
         return ResponseEntity.ok(Map.of(
                 "success", true,

@@ -1,11 +1,13 @@
 package com.jason.purchase_agent.service.products;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jason.purchase_agent.dto.products.ManualPriceStockUpdateRequest;
 import com.jason.purchase_agent.dto.products.ProductUpdateRequest;
 import com.jason.purchase_agent.dto.suppliers.SupplierDto;
 import com.jason.purchase_agent.entity.ProcessStatus;
+import com.jason.purchase_agent.external.coupang.CoupangApiService;
 import com.jason.purchase_agent.external.iherb.IherbProductCrawler;
 import com.jason.purchase_agent.external.iherb.dto.IherbProductDto;
 import com.jason.purchase_agent.messaging.MessageQueueService;
@@ -26,11 +28,15 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
-
 import static com.jason.purchase_agent.common.calculator.Calculator.calculateSalePrice;
+import static com.jason.purchase_agent.external.iherb.IherbProductCrawler.crawlProductAsJson;
+import static com.jason.purchase_agent.util.converter.StringListConverter.objectMapper;
+import static com.jason.purchase_agent.util.exception.ExceptionUtils.uncheck;
 
 @Service
 @RequiredArgsConstructor
@@ -38,14 +44,164 @@ import static com.jason.purchase_agent.common.calculator.Calculator.calculateSal
 public class ProductService {
 
     private final ProcessStatusService pss;
-
+    private final CoupangApiService coupangApiService;
     private final ProductRepository productRepository;
     private final ProductChannelMappingRepository channelMappingRepository;
     private final ProductChannelMappingRepository mappingRepository;
     private final ProcessStatusRepository psr;
     private final MessageQueueService messageQueueService;
     private final ObjectMapper objectMapper;
-    private final IherbProductCrawler iherbProductCrawler;
+
+    public List<ProductUpdateRequest> makeRequestsBySupplier(
+            String supplierCode
+    ) {
+        List<Product> products = productRepository.findBySupplier_SupplierCode(supplierCode);
+
+        // 상품별로 채널 매핑 정보 불러와서 ProductDto에 세팅
+        return products.stream().map(prod -> {
+            ProductDto dto = ProductDto.fromEntity(prod);
+
+            // 예: 채널 매핑 정보를 불러서 DTO에 세팅
+            Optional<ProductChannelMapping> mapping = channelMappingRepository.findByProductCode(prod.getCode());
+
+            if (mapping.isPresent()) {
+                ProductChannelMapping map = mapping.get();
+                dto.setVendorItemId(map.getVendorItemId());
+                dto.setSellerProductId(map.getSellerProductId());
+                dto.setSmartstoreId(map.getSmartstoreId());
+                dto.setOriginProductNo(map.getOriginProductNo());
+                dto.setElevenstId(map.getElevenstId());
+                dto.setCafeNo(map.getCafeNo());
+                dto.setCafeCode(map.getCafeCode());
+                dto.setCafeOptCode(map.getCafeOptCode());
+            }
+
+            return ProductUpdateRequest.builder()
+                    .code(prod.getCode())
+                    .productDto(dto)
+                    .priceChanged(true)
+                    .stockChanged(true)
+                    .build();
+        }).toList();
+    }
+
+    public void crawlAndSetPriceStock (
+            ProductDto productDto, Integer marginRate, Integer couponRate, Integer minMarginPrice
+    ) {
+        String prodId = productRepository.findIherbProductIdFromLinkByCode(productDto.getCode());
+        String productJson = uncheck(() -> crawlProductAsJson(prodId));
+        IherbProductDto iherbProductDto = IherbProductDto.fromJsonWithLinks(productJson);
+
+        Integer salePrice = calculateSalePrice(marginRate, couponRate, minMarginPrice, productDto.getPackQty(), iherbProductDto);
+        Integer stock = Boolean.TRUE.equals(iherbProductDto.getIsAvailableToPurchase()) ? 500 : 0;
+
+        productDto.setSalePrice(salePrice);
+        productDto.setStock(stock);
+    }
+
+    public void saveProductAndMapping(
+            ProductDto productDto
+    ) {
+        Product product = getProductOrThrow(productDto.getCode());
+        ProductChannelMapping mapping = findOrCreateChannelMapping(productDto.getCode());
+
+        updateProductFields(product, productDto);
+        updateChannelMappingFields(mapping, productDto);
+
+        productRepository.save(product);
+        mappingRepository.save(mapping);
+    }
+
+    public void publishChannelUpdates(
+            String batchId, ProductDto productDto, boolean priceChanged, boolean stockChanged
+    ) {
+        boolean hasSellerProductId =
+                productDto.getSellerProductId() != null && !productDto.getSellerProductId().isBlank();
+        boolean hasVendorItemId =
+                productDto.getVendorItemId() != null && !productDto.getVendorItemId().isBlank();
+        // sellerProductId와 vendorItemId가 모두 있을 경우, 메세지 발행
+        if (hasSellerProductId) {
+            if (!hasVendorItemId) {
+                // vendorItemId 조회해서 세팅하고 DB 저장
+                String responseJson = coupangApiService.findProductInfo(productDto.getSellerProductId());
+                JsonNode root = uncheck(() -> objectMapper.readTree(responseJson));
+                JsonNode dataNode = root.path("data");
+                JsonNode itemsNode = dataNode.path("items");
+                if (itemsNode.isArray() && itemsNode.size() > 0) {
+                    JsonNode item = itemsNode.get(0);
+                    String vendorItemId = item.path("vendorItemId").asText();
+                    if (vendorItemId != null && !vendorItemId.isBlank()) {
+                        productDto.setVendorItemId(vendorItemId);
+                        saveProductAndMapping(productDto);
+                        // hasVendorItemId = true;
+                    }
+                }
+            }
+            // 실시간 체크로 변경
+            if (productDto.getVendorItemId() != null && !productDto.getVendorItemId().isBlank() && priceChanged) {
+                messageQueueService.publishPriceUpdateChannel(batchId, "coupang", productDto);
+            }
+            if (productDto.getVendorItemId() != null && !productDto.getVendorItemId().isBlank() && stockChanged) {
+                messageQueueService.publishStockUpdateChannel(batchId, "coupang", productDto);
+            }
+        }
+        syncToChannelsForOtherChannels(batchId, productDto, priceChanged, stockChanged);
+    }
+
+    private void syncToChannelsForOtherChannels(
+            String batchId, ProductDto productDto, boolean priceChanged, boolean stockChanged
+    ) {
+
+        Map<String, String> channelIdProps = new HashMap<>();
+        if (productDto.getOriginProductNo() != null && !productDto.getOriginProductNo().trim().isEmpty()) {
+            channelIdProps.put("smartstore", productDto.getOriginProductNo());
+        }
+        if (productDto.getElevenstId() != null && !productDto.getElevenstId().trim().isEmpty()) {
+            channelIdProps.put("elevenst", productDto.getElevenstId());
+        }
+        if (productDto.getCafeNo() != null && !productDto.getCafeNo().trim().isEmpty()) {
+            channelIdProps.put("cafe", productDto.getCafeNo());
+        }
+
+        if (priceChanged) {
+            channelIdProps.forEach((channel, id) -> {
+                if (id != null) {
+                    messageQueueService.publishPriceUpdateChannel(batchId, channel, productDto);
+                }
+            });
+        }
+        if (stockChanged) {
+            channelIdProps.forEach((channel, id) -> {
+                if (id != null) {
+                    messageQueueService.publishStockUpdateChannel(batchId, channel, productDto);
+                }
+            });
+        }
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     /**
      * 상품목록 조회 (검색 + 필터 + 페이징)
      */
@@ -269,14 +425,14 @@ public class ProductService {
                     log.info("[MQ][VENDOR_ID_SYNC] 발행");
                 } else {
                     // vendorItemId 존재 → Price/Stock 메시지 바로 발행
-                    if (priceChanged) messageQueueService.publishPriceUpdate(
+                    /*if (priceChanged) messageQueueService.publishPriceUpdate(
                             "coupang", product, mapping, batchId);
                     if (stockChanged) messageQueueService.publishStockUpdate(
-                            "coupang", product, mapping, batchId);
+                            "coupang", product, mapping, batchId);*/
                     log.info("[MQ][COUPANG] Price/Stock 업데이트 메시지 직접 발행");
                 }
             }
-            syncToChannelsForOtherChannels(mapping, product, batchId, priceChanged, stockChanged);
+            // syncToChannelsForOtherChannels(mapping, product, batchId, priceChanged, stockChanged);
 
             log.info("[Finish] 상품/연동정보 업데이트 성공적으로 종료 - batchId={}", batchId);
 
@@ -295,8 +451,7 @@ public class ProductService {
     }
 
     /**
-     * 쿠팡 채널에 대한 동기화(가격/재고) 작업이 필요한지 여부 판단.
-     * vendorItemId 또는 sellerProductId 있는지, 가격/재고 변경 플래그 등 조건 조합 가능
+     * sellerProductId 있으면서 가격/재고 변경 플래그 하나라도 참일 경우
      */
     private boolean needCoupangSync(
             ProductChannelMapping mapping, boolean priceChanged, boolean stockChanged
@@ -308,47 +463,7 @@ public class ProductService {
         return hasCoupangId && (priceChanged || stockChanged);
     }
 
-    /**
-     * 쿠팡 외 타 채널(스마트스토어, 11번가 등) 동기화 메시지 발송 (기존 방식 유지)
-     */
-    private void syncToChannelsForOtherChannels(
-            ProductChannelMapping mapping, Product product,
-            String batchId, boolean priceChanged, boolean stockChanged
-    ) {
-        Map<String, String> channelIdProps = new HashMap<>();
-        if (mapping.getOriginProductNo() != null && !mapping.getOriginProductNo().trim().isEmpty()) {
-            channelIdProps.put("smartstore", mapping.getOriginProductNo());
-        }
-        if (mapping.getElevenstId() != null && !mapping.getElevenstId().trim().isEmpty()) {
-            channelIdProps.put("elevenst", mapping.getElevenstId());
-        }
-        if (mapping.getCafeNo() != null && !mapping.getCafeNo().trim().isEmpty()) {
-            channelIdProps.put("cafe", mapping.getCafeNo());
-        }
 
-
-        log.info("[SYNC][OTHERS] 타 채널 동기화 시작 - batchId={}, priceChanged={}, stockChanged={}, channels={}",
-                batchId, priceChanged, stockChanged, channelIdProps.keySet());
-
-        if (priceChanged) {
-            channelIdProps.forEach((channel, id) -> {
-                if (id != null) {
-                    messageQueueService.publishPriceUpdate(channel, product, mapping, batchId);
-                    log.debug("[MQ][PRICE][{}] 메시지 발송 완료 - id={}, batchId={}", channel, id, batchId);
-                }
-            });
-        }
-        if (stockChanged) {
-            channelIdProps.forEach((channel, id) -> {
-                if (id != null) {
-                    messageQueueService.publishStockUpdate(channel, product, mapping, batchId);
-                    log.debug("[MQ][STOCK][{}] 메시지 발송 완료 - id={}, batchId={}", channel, id, batchId);
-                }
-            });
-        }
-
-        log.info("[SYNC][OTHERS] 타 채널 동기화 종료 - batchId={}", batchId);
-    }
 
 
     /**
@@ -470,6 +585,9 @@ public class ProductService {
         if (productDto.getSmartstoreId() != null) mapping.setSmartstoreId(productDto.getSmartstoreId());
         if (productDto.getOriginProductNo() != null) mapping.setOriginProductNo(productDto.getOriginProductNo());
         if (productDto.getElevenstId() != null) mapping.setElevenstId(productDto.getElevenstId());
+        if (productDto.getCafeNo() != null) mapping.setCafeNo(productDto.getCafeNo());
+        if (productDto.getCafeCode() != null) mapping.setCafeCode(productDto.getCafeCode());
+        if (productDto.getCafeOptCode() != null) mapping.setCafeOptCode(productDto.getCafeOptCode());
     }
 
     // 리스트로 상품묶음 받아와서 개별 처리...
@@ -486,14 +604,14 @@ public class ProductService {
             try {
                 log.info("[crawlAndSetPriceStock] 상품 처리 시작: code={}", productDto.getCode());
                 String prodId = productRepository.findIherbProductIdFromLinkByCode(productDto.getCode());
-                String productJson = iherbProductCrawler.crawlProductAsJson(prodId);
+                String productJson = crawlProductAsJson(prodId);
                 log.debug("[crawlAndSetPriceStock] iHerb 상품 크롤링 완료: prodId={}", prodId);
 
                 IherbProductDto iherbProductDto = IherbProductDto.fromJsonWithLinks(productJson);
                 log.debug("[crawlAndSetPriceStock] iHerbProductDto 변환 완료: iherbProductDto={}", iherbProductDto);
 
                 Integer salePrice = calculateSalePrice(
-                        marginRate, couponRate, minMarginPrice, productDto, iherbProductDto);
+                        marginRate, couponRate, minMarginPrice, productDto.getPackQty(), iherbProductDto);
                 Integer stock = Boolean.TRUE.equals(iherbProductDto.getIsAvailableToPurchase()) ? 500 : 0;
                 log.info("[crawlAndSetPriceStock] 계산 결과: code={}, salePrice={}, stock={}",
                         productDto.getCode(), salePrice, stock);
@@ -531,42 +649,10 @@ public class ProductService {
                 })
                 .collect(Collectors.toList());
 
-        updateProductsBatch(requests, null);
+        /*updateProductsBatch(requests, null);*/
     }
 
-    public List<ProductUpdateRequest> makeUpdateRequestsBySupplier(
-            String supplierCode
-    ) {
-        List<Product> products = productRepository.findBySupplier_SupplierCode(supplierCode);
 
-        // 상품별로 채널 매핑 정보 불러와서 ProductDto에 세팅
-        return products.stream().map(prod -> {
-            ProductDto dto = ProductDto.fromEntity(prod);
-
-            // 예: 채널 매핑 정보를 불러서 DTO에 세팅
-            Optional<ProductChannelMapping> mapping = channelMappingRepository.findByProductCode(prod.getCode());
-
-            if (mapping.isPresent()) {
-                ProductChannelMapping map = mapping.get();
-                dto.setVendorItemId(map.getVendorItemId());
-                dto.setSellerProductId(map.getSellerProductId());
-                dto.setSmartstoreId(map.getSmartstoreId());
-                dto.setOriginProductNo(map.getOriginProductNo());
-                dto.setElevenstId(map.getElevenstId());
-                dto.setCafeNo(map.getCafeNo());
-                dto.setCafeCode(map.getCafeCode());
-                dto.setCafeOptCode(map.getCafeOptCode());
-                // 필요에 따라 DTO에 추가 필드 세팅
-            }
-
-            return ProductUpdateRequest.builder()
-                    .code(prod.getCode())
-                    .productDto(dto)
-                    .priceChanged(true)
-                    .stockChanged(true)
-                    .build();
-        }).toList();
-    }
 
     public void crawlAndUpdateProductsIndividually(
             Integer marginRate,
@@ -579,11 +665,11 @@ public class ProductService {
                 // 1. 크롤링 (외부 API 호출)
                 ProductDto productDto = request.getProductDto();
                 String prodId = productRepository.findIherbProductIdFromLinkByCode(productDto.getLink());
-                String productJson = iherbProductCrawler.crawlProductAsJson(prodId);
+                String productJson = crawlProductAsJson(prodId);
                 IherbProductDto iherbProductDto = IherbProductDto.fromJsonWithLinks(productJson);
 
                 Integer salePrice = calculateSalePrice(
-                        marginRate, couponRate, minMarginPrice, productDto, iherbProductDto);
+                        marginRate, couponRate, minMarginPrice, productDto.getPackQty(), iherbProductDto);
                 Integer stock = Boolean.TRUE.equals(iherbProductDto.getIsAvailableToPurchase()) ? 500 : 0;
 
                 productDto.setSalePrice(salePrice);
@@ -591,8 +677,8 @@ public class ProductService {
 
                 String batchId = UUID.randomUUID().toString();
                 // 2. 단일 상품 업데이트(RabbitMQ 등 메시지 발행 또는 DB 처리)
-                updateSingleProductInBatch(batchId, request.getCode(), request.getProductDto(),
-                        request.isPriceChanged(), request.isStockChanged(), false);
+                /*updateSingleProductInBatch(batchId, request.getCode(), request.getProductDto(),
+                        request.isPriceChanged(), request.isStockChanged(), false);*/
 
                 // 3. (선택) 크롤링 간 간단한 delay 추가 (봇 감지 방지)
                 Thread.sleep(200); // 0.2초 지연 (Case/SLA에 따라 조정)
@@ -602,23 +688,22 @@ public class ProductService {
         }
     }
 
-    public void enqueueProductBatchUpdate(
+    @Transactional
+    public void crawlAndUpdateBySupplier (
             Integer marginRate, Integer couponRate, Integer minMarginPrice,
             List<ProductUpdateRequest> requests
     ) {
         String batchId = UUID.randomUUID().toString();
 
-        String batchInitMsg = String.format("%d개 상품 비동기 배치 시작", requests.size());
-        pss.upsertProcessStatus(batchId, null, createBatchSummaryDetails(requests),
-                "BATCH_UPDATE", "PENDING", batchInitMsg);
-
-        // 각 상품을 큐 메시지(Task 객체)로 발행
         for (ProductUpdateRequest request : requests) {
-            messageQueueService.publishCrawlAndUpdateProduct(batchId, request, marginRate, couponRate, minMarginPrice);
+            // 각 상품에 대해 메세지 발행
+            messageQueueService.publishCrawlAndUpdateEachProductBySupplier(
+                    marginRate, couponRate, minMarginPrice, request, batchId);
         }
 
-        pss.upsertProcessStatus(batchId, null, null,
-                "BATCH_UPDATE", "SUCCESS", "배치 완료");
+        String batchInitMsg = String.format("%d개 배치 시작", requests.size());
+        pss.upsertProcessStatus(batchId, null, createBatchSummaryDetails(requests),
+                "UPDATE_PRODUCTS", "PENDING", batchInitMsg);
     }
 
 
@@ -674,8 +759,8 @@ public class ProductService {
 
         for (ProductUpdateRequest request : requests) {
             try {
-                updateSingleProductInBatch(batchId, request.getCode(), request.getProductDto(),
-                        request.isPriceChanged(), request.isStockChanged(), isRetry);
+                /*updateSingleProductInBatch(batchId, request.getCode(), request.getProductDto(),
+                        request.isPriceChanged(), request.isStockChanged(), isRetry);*/
                 successCount++;
 
                 // (4) 진행상황 업데이트 (총괄 row)
@@ -784,13 +869,13 @@ public class ProductService {
                             mapping, product, batchId, priceChanged, stockChanged);
                 } else {
                     // vendorItemId가 있으면, 메시지 발행
-                    if (priceChanged) messageQueueService.publishPriceUpdate(
+                    /*if (priceChanged) messageQueueService.publishPriceUpdate(
                             "coupang", product, mapping, batchId);
                     if (stockChanged) messageQueueService.publishStockUpdate(
-                            "coupang", product, mapping, batchId);
+                            "coupang", product, mapping, batchId);*/
                 }
             }
-            syncToChannelsForOtherChannels(mapping, product, batchId, priceChanged, stockChanged);
+            // syncToChannelsForOtherChannels(mapping, product, batchId, priceChanged, stockChanged);
 
             log.info("[Batch][Item] 상품 처리 완료 - batchId={}, code={}", batchId, code);
 
@@ -811,6 +896,7 @@ public class ProductService {
     private String createBatchSummaryDetails(
             List<ProductUpdateRequest> requests
     ) {
+        // {"totalCount": 2000, "productCodes": [...], "timestamp":"2025-10-09T18:45:22.0733536"}
         Map<String, Object> summary = Map.of(
                 "totalCount", requests.size(),
                 "productCodes", requests.stream()

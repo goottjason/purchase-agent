@@ -63,6 +63,7 @@ public class ProcessStatusService {
      * @param status        상태 (null 가능)
      * @param message       메시지 (null 가능)
      */
+    @Transactional // 추가!
     public void upsertProcessStatus(
             String batchId, String productCode, String details,
             String step, String status, String message
@@ -108,11 +109,8 @@ public class ProcessStatusService {
     public void mergeChannelResult(
             String batchId, String productCode, String channel, Map<String, Object> channelResult
     ) {
-        log.info("[ProcessStatus][Merge] 호출 - batchId={}, productCode={}, channel={}, step=CHANNEL_UPDATE", batchId, productCode, channel);
-
         ProcessStatus ps = psr.findByBatchIdAndProductCode(batchId, productCode)
                 .orElseThrow(() -> {
-                    log.error("[ProcessStatus][Merge] 이력 찾기 실패 - batchId={}, productCode={}", batchId, productCode);
                     return new IllegalArgumentException("해당 상태이력 없음");
                 });
 
@@ -123,9 +121,7 @@ public class ProcessStatusService {
             msgJson = (msgString != null && msgString.trim().startsWith("{"))
                     ? objectMapper.readValue(msgString, new TypeReference<Map<String,Object>>() {})
                     : new HashMap<>();
-            log.debug("[ProcessStatus][Merge] 기존 message 파싱 성공 - msgJson={}", msgJson);
         } catch (JsonProcessingException e) {
-            log.warn("[ProcessStatus][Merge] message JSON 파싱 실패, 빈 map으로 대체 - {}", e.getMessage());
             msgJson = new HashMap<>();
         }
 
@@ -141,14 +137,14 @@ public class ProcessStatusService {
         }
         resultList.add(channelResult);
 
-        log.debug("[ProcessStatus][Merge] 채널 결과 리스트 추가 - channel={}, channelResult={}", channel, channelResult);
+        /*log.debug("[ProcessStatus][Merge] 채널 결과 리스트 추가 - channel={}, channelResult={}", channel, channelResult);*/
 
         try {
             String mergedMsgStr = objectMapper.writeValueAsString(msgJson);
             ps.setMessage(mergedMsgStr);
-            log.info("[ProcessStatus][Merge] message 병합 및 저장 준비 - mergedMsg={}", mergedMsgStr);
+            /*log.info("[ProcessStatus][Merge] message 병합 및 저장 준비 - mergedMsg={}", mergedMsgStr);*/
         } catch (JsonProcessingException e) {
-            log.error("[ProcessStatus][Merge] message JSON serialize 실패 - {}", e.getMessage(), e);
+            /*log.error("[ProcessStatus][Merge] message JSON serialize 실패 - {}", e.getMessage(), e);*/
             throw new RuntimeException(e);
         }
 
@@ -161,12 +157,6 @@ public class ProcessStatusService {
                         !list.isEmpty() && "SUCCESS".equals(list.get(list.size() - 1).get("status"))
                 );
         ps.setStatus(allSuccess ? "SUCCESS" : "FAIL");
-        log.info("[ProcessStatus][Merge] status 계산, allSuccess={}, 최종 status={}", allSuccess, ps.getStatus());
-
         psr.save(ps);
-        log.info("[ProcessStatus][Merge] 최종 이력 저장 완료 - batchId={}, productCode={}, step={}, status={}", batchId, productCode, ps.getStep(), ps.getStatus());
     }
-
-
-
 }

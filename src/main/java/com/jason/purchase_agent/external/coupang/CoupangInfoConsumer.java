@@ -29,7 +29,7 @@ public class CoupangInfoConsumer {
     private final ProductRepository productRepository;
     private final ProcessStatusService processStatusService;
 
-    @RabbitListener(queues = "vendoritemid-sync-coupang")
+    /*@RabbitListener(queues = "vendoritemid-sync-coupang")
     public void handleVendorItemIdSync(VendorItemIdSyncMessage msg) {
         log.info("[MQ][VENDOR_ID_SYNC] 컨슈머 메시지 수신 - batchId={}, productCode={}",
                 msg.getBatchId(), msg.getProductCode());
@@ -108,5 +108,5 @@ public class CoupangInfoConsumer {
             log.error("[MQ][VENDOR_ID_SYNC] 처리 중 예외! - batchId={}, productCode={}, 원인={}", msg.getBatchId(), msg.getProductCode(), e.getMessage(), e);
             // 필요하면 재시도/정책 처리
         }
-    }
+    }*/
 }

@@ -43,7 +43,7 @@ public class ProductQueueConsumer {
                 message.getMarginRate(),
                 message.getCouponRate(),
                 message.getMinMarginPrice(),
-                message.getProductDto(),
+                message.getProductDto().getPackQty(),
                 iherbProductDto);
         // 5. stock 계산
         Integer stock = iherbProductDto.getIsAvailableToPurchase() ? 498 : 0;

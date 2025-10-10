@@ -9,9 +9,9 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
-public class CrawlAndUpdateProductMessage {
+public class CrawlAndUpdateEachProductBySupplierMessage {
     private String batchId;
-    private ProductUpdateRequest request;
+    private ProductDto productDto;
     private Integer marginRate;
     private Integer couponRate;
     private Integer minMarginPrice;

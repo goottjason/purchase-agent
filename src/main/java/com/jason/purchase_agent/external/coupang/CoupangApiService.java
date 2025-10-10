@@ -48,37 +48,26 @@ public class CoupangApiService {
 
 
     public String updatePrice(String vendorItemId, Integer salePrice) {
-        log.info("[CoupangAPI][Price] 가격 변경 요청 - vendorItemId={}, salePrice={}", vendorItemId, salePrice);
-
         try {
             String path = String.format(
                     "/v2/providers/seller_api/apis/api/v1/marketplace/vendor-items/%s/prices/%d",
                     vendorItemId, salePrice);
-            log.debug("[CoupangAPI][Price] 요청 경로: {}", path);
 
             String response = executeRequest("PUT", path, null, null);
-            log.debug("[CoupangAPI][Price] API 원본 응답: {}", response);
-
             return response;
         } catch (Exception e) {
             log.error("[CoupangAPI][Price] 요청/파싱 에러 - vendorItemId={}, price={}, 원인={}",
                     vendorItemId, salePrice, e.getMessage());
-            // 필요시 에러 JSON etc
             return "{}";
         }
     }
     public String updateStock(String vendorItemId, Integer stock) {
-        log.info("[CoupangAPI][Stock] 재고 변경 요청 - vendorItemId={}, stock={}", vendorItemId, stock);
-
         try {
             String path = String.format(
                     "/v2/providers/seller_api/apis/api/v1/marketplace/vendor-items/%s/quantities/%d",
                     vendorItemId, stock);
-            log.debug("[CoupangAPI][Stock] 요청 경로: {}", path);
 
             String response = executeRequest("PUT", path, null, null);
-            log.debug("[CoupangAPI][Stock] API 원본 응답: {}", response);
-
             return response;
         } catch (Exception e) {
             log.error("[CoupangAPI][Stock] 요청/파싱 에러 - vendorItemId={}, stock={}, 원인={}",

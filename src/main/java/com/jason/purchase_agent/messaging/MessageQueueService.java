@@ -26,21 +26,79 @@ public class MessageQueueService {
             "products.batch_manual_price_stock_update_queue";
 
 
-
-    public void publishCrawlAndUpdateProduct(
-            String batchId, ProductUpdateRequest request,
-            Integer marginRate, Integer couponRate, Integer minMarginPrice
+    public void publishCrawlAndUpdateEachProductBySupplier(
+            Integer marginRate, Integer couponRate, Integer minMarginPrice,
+            ProductUpdateRequest request, String batchId
     ) {
-        CrawlAndUpdateProductMessage msg = CrawlAndUpdateProductMessage.builder()
+        CrawlAndUpdateEachProductBySupplierMessage msg = CrawlAndUpdateEachProductBySupplierMessage.builder()
                 .batchId(batchId)
-                .request(request)
+                .productDto(request.getProductDto())
                 .marginRate(marginRate)
                 .couponRate(couponRate)
                 .minMarginPrice(minMarginPrice)
                 .build();
 
-        rabbitTemplate.convertAndSend("crawl-and-update-product", msg);
+        rabbitTemplate.convertAndSend("crawl-and-update-each-product-by-supplier", msg);
     }
+
+    // 가격 변경 메시지 발행
+    public void publishPriceUpdateChannel(
+            String batchId, String channel, ProductDto productDto
+    ) {
+        String channelId = getChannelIdForChannel(channel, productDto);
+        PriceUpdateChannelMessage msg = PriceUpdateChannelMessage.builder()
+                .batchId(batchId)
+                .channel(channel)
+                .channelId1(channelId)
+                .channelId2(null)
+                .productCode(productDto.getCode())
+                .salePrice(productDto.getSalePrice())
+                .build();
+
+        rabbitTemplate.convertAndSend("price-update-" + channel, msg);
+    }
+
+    // 재고 변경 메시지 발행
+    public void publishStockUpdateChannel(
+            String batchId, String channel, ProductDto productDto
+    ) {
+        String channelId = getChannelIdForChannel(channel, productDto);
+        StockUpdateChannelMessage msg = StockUpdateChannelMessage.builder()
+                .channel(channel)
+                .channelId1(channelId)
+                .channelId2("cafe".equals(channel) ? productDto.getCafeOptCode() : null)
+                .batchId(batchId)
+                .productCode(productDto.getCode())
+                .stock(productDto.getStock())
+                .build();
+
+        rabbitTemplate.convertAndSend("stock-update-" + channel, msg);
+    }
+
+    // 채널명에 따른 채널 상품 ID 조회 헬퍼 메서드
+    private String getChannelIdForChannel(String channel, ProductDto productDto) {
+        String channelId;
+        switch (channel) {
+            case "coupang":
+                channelId = productDto.getVendorItemId();
+                break;
+            case "smartstore":
+                channelId = productDto.getOriginProductNo();
+                break;
+            case "elevenst":
+                channelId = productDto.getElevenstId();
+                break;
+            case "cafe":
+                channelId = productDto.getCafeNo();
+                break;
+            default:
+                channelId = null;
+        }
+        return channelId;
+    }
+
+
+
 
     /**
      * vendorItemId가 없는 경우, vendorItemId 조회/동기화 메시지를 큐로 발행
@@ -64,7 +122,7 @@ public class MessageQueueService {
     }
 
     // 가격 변경 메시지 발행
-    public void publishPriceUpdate(
+    /*public void publishPriceUpdate(
             String channel, Product product, ProductChannelMapping mapping, String batchId
     ) {
         // 채널 매핑 정보에 해당 채널의 상품 ID가 없으면 리턴
@@ -86,10 +144,10 @@ public class MessageQueueService {
 
         // 메시지 발행
         rabbitTemplate.convertAndSend("price-update-" + channel, msg);
-    }
+    }*/
 
     // 재고 변경 메시지 발행
-    public void publishStockUpdate(
+    /*public void publishStockUpdate(
             String channel, Product product, ProductChannelMapping mapping, String batchId
     ) {
         // 채널 매핑 정보에 해당 채널의 상품 ID가 없으면 리턴
@@ -111,29 +169,8 @@ public class MessageQueueService {
         log.info("[MQ][STOCK] 메시지 발행 - queue=stock-update-{}, message={}, batchId={}", channel, msg, batchId);
 
         rabbitTemplate.convertAndSend("stock-update-" + channel, msg);
-    }
-    // 채널명에 따른 채널 상품 ID 조회 헬퍼 메서드
-    private String getChannelIdForChannel(String channel, ProductChannelMapping mapping) {
-        String channelId;
-        switch (channel) {
-            case "coupang":
-                channelId = mapping.getVendorItemId();
-                break;
-            case "smartstore":
-                channelId = mapping.getOriginProductNo();
-                break;
-            case "elevenst":
-                channelId = mapping.getElevenstId();
-                break;
-            case "cafe":
-                channelId = mapping.getCafeNo();
-                break;
-            default:
-                channelId = null;
-        }
-        log.info("[MQ] 채널ID 매핑 결과 - channel={}, channelId={}", channel, channelId);
-        return channelId;
-    }
+    }*/
+
 
 
 
