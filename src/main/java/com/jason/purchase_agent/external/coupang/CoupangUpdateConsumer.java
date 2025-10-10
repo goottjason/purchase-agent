@@ -40,12 +40,14 @@ public class CoupangUpdateConsumer {
                 String message = String.format("가격: %,d원, ID: %s", msg.getSalePrice(), msg.getChannelId1());
                 channelResult.put("status", "SUCCESS");
                 channelResult.put("message", message);
-                log.info("[{}][Coupang][Price] 성공", msg.getProductCode());
+                log.info("[{}][Coupang][Price] 성공 (vendorItemId={}, salePrice={})",
+                        msg.getProductCode(), msg.getChannelId1(), msg.getSalePrice());
             } else {
                 String message = String.format("코드: {}", code);
                 channelResult.put("status", "FAIL");
                 channelResult.put("message", message);
-                log.error("[{}][Coupang][Price] 실패", msg.getProductCode());
+                log.error("[{}][Coupang][Price] 실패 (responseJson={})",
+                        msg.getProductCode(), responseJson);
             }
 
             pss.mergeChannelResult(msg.getBatchId(), msg.getProductCode(), "coupang", channelResult);
@@ -59,7 +61,7 @@ public class CoupangUpdateConsumer {
 
             pss.mergeChannelResult(msg.getBatchId(), msg.getProductCode(), "coupang", channelResult);
 
-            log.error("[{}][Coupang][Price] 실패({})", msg.getProductCode(), e.getMessage());
+            log.error("[{}][Coupang][Price] 실패 (e.getMessage()={})", msg.getProductCode(), e.getMessage());
             throw new AmqpRejectAndDontRequeueException("MQ 폐기(파싱 실패)", e);
         }
     }
@@ -79,12 +81,14 @@ public class CoupangUpdateConsumer {
                 String message = String.format("재고: %d개, ID: %s", msg.getStock(), msg.getChannelId1());
                 channelResult.put("status", "SUCCESS");
                 channelResult.put("message", message);
-                log.info("[{}][Coupang][Stock] 성공", msg.getProductCode());
+                log.info("[{}][Coupang][Stock] 성공 (vendorItemId={}, stock={})",
+                        msg.getProductCode(), msg.getChannelId1(), msg.getStock());
             } else {
                 String message = String.format("코드: {}", code);
                 channelResult.put("status", "FAIL");
                 channelResult.put("message", message);
-                log.error("[{}][Coupang][Stock] 실패", msg.getProductCode());
+                log.error("[{}][Coupang][Stock] 실패 (responseJson={})",
+                        msg.getProductCode(), responseJson);
             }
 
             pss.mergeChannelResult(msg.getBatchId(), msg.getProductCode(), "coupang", channelResult);
@@ -100,7 +104,7 @@ public class CoupangUpdateConsumer {
                     msg.getBatchId(), msg.getProductCode(), "coupang", channelResult
             );
 
-            log.error("[{}][Coupang][Stock] 실패({})", msg.getProductCode(), e.getMessage());
+            log.error("[{}][Coupang][Stock] 실패 (e.getMessage()={})", msg.getProductCode(), e.getMessage());
             throw new AmqpRejectAndDontRequeueException("MQ 폐기(파싱 실패)", e);
         }
     }

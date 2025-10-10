@@ -1,15 +1,11 @@
 package com.jason.purchase_agent.external.coupang;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.jason.purchase_agent.dto.channel.coupang.CoupangApiResponse;
 import com.jason.purchase_agent.dto.channel.coupang.CoupangCategoryMetaInfoDto;
 import com.jason.purchase_agent.dto.channel.coupang.CoupangProductRequest;
-import com.jason.purchase_agent.dto.product_registration.ProductRegistrationDto;
-import com.jason.purchase_agent.util.salechannelapi.coupang.CoupangApiUtil;
-import jakarta.transaction.Transactional;
+import com.jason.purchase_agent.dto.product_registration.ProductRegistrationRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -56,7 +52,7 @@ public class CoupangApiService {
             String response = executeRequest("PUT", path, null, null);
             return response;
         } catch (Exception e) {
-            log.error("[CoupangAPI][Price] 요청/파싱 에러 - vendorItemId={}, price={}, 원인={}",
+            log.error("[CoupangUpdatePrice] 요청 에러 (vendorItemId={}, salePrice={}, e.getMessage()={})",
                     vendorItemId, salePrice, e.getMessage());
             return "{}";
         }
@@ -70,7 +66,7 @@ public class CoupangApiService {
             String response = executeRequest("PUT", path, null, null);
             return response;
         } catch (Exception e) {
-            log.error("[CoupangAPI][Stock] 요청/파싱 에러 - vendorItemId={}, stock={}, 원인={}",
+            log.error("[CoupangUpdateStock] 요청 에러 (vendorItemId={}, stock={}, e.getMessage()={})",
                     vendorItemId, stock, e.getMessage());
             return "{}";
         }
@@ -88,7 +84,7 @@ public class CoupangApiService {
         System.out.println("resStock = " + resStock);
     }
 
-    public String enrollProducts(ProductRegistrationDto product) {
+    public String enrollProducts(ProductRegistrationRequest product) {
         // 쿠팡 상품등록 API 호출 로직 구현
 
         // 1. CoupangProductRequest의 팩토리메서드로 DTO 생성
@@ -166,7 +162,7 @@ public class CoupangApiService {
         return executeRequest(method, path, params, body);
     }
 
-    public String recommendDisplayCategory(ProductRegistrationDto product) throws JsonProcessingException {
+    public String recommendDisplayCategory(ProductRegistrationRequest product) throws JsonProcessingException {
         String path = "/v2/providers/openapi/apis/api/v1/categorization/predict";
         Map<String, Object> body = new HashMap<>();
         body.put("productName", product.getKorName());
@@ -194,7 +190,7 @@ public class CoupangApiService {
     }
 
 
-    private String buildItemName(ProductRegistrationDto product) {
+    private String buildItemName(ProductRegistrationRequest product) {
         StringBuilder sb = new StringBuilder();
 
         // 단위/수량이 명확한 경우 (ex: 453ml_3개)
@@ -208,7 +204,7 @@ public class CoupangApiService {
     }
 
     private List<CoupangProductRequest.Content> buildProductContents(
-            ProductRegistrationDto product
+            ProductRegistrationRequest product
     ) {
 
         // --- 1. HTML 조립용 파라미터 추출
@@ -284,7 +280,7 @@ public class CoupangApiService {
 
 
     private List<CoupangProductRequest.Attribute> buildRequiredAttributes(
-            CoupangCategoryMetaInfoDto metaInfo, ProductRegistrationDto product
+            CoupangCategoryMetaInfoDto metaInfo, ProductRegistrationRequest product
     ) {
         List<CoupangProductRequest.Attribute> attributes = new ArrayList<>();
         if (metaInfo == null || metaInfo.getAttributes() == null) return attributes;
@@ -327,7 +323,7 @@ public class CoupangApiService {
         return attributes;
     }
 
-    private List<CoupangProductRequest.Certification> buildCertifications(ProductRegistrationDto product) {
+    private List<CoupangProductRequest.Certification> buildCertifications(ProductRegistrationRequest product) {
         // 실제 파일명/번호는 DB, 관리자 세팅값, 폼 데이터 등에서 가져올 것
         String certificationCode;
         String vendorPath;

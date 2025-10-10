@@ -7,7 +7,6 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Set;
 
 @Data
 @Builder
@@ -19,7 +18,7 @@ public class ProductRegistrationRetryMessage {
     private String requestedBy;
     private LocalDateTime requestedAt;
 
-    private List<ProductRegistrationDto> products; // 3단계 일괄
-    private ProductRegistrationDto product;        // 단건
+    private List<ProductRegistrationRequest> products; // 3단계 일괄
+    private ProductRegistrationRequest product;        // 단건
     private List<String> retryChannels;            // 4단계 선택
 }

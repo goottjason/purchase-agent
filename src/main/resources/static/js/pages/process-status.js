@@ -209,7 +209,18 @@ $(document).ready(function(){
     const productCode = $(this).data("product-code");
     const confirmMsg = productCode ? "정말 삭제하시겠습니까?" : "배치 전체를 삭제하시겠습니까?";
 
-    if(confirm(confirmMsg)) {
+    $.ajax({
+      url: "/process-status/delete",
+      method: "POST",
+      contentType: "application/json",
+      data: JSON.stringify({ batchId, productCode }),
+      success: function(){
+        // alert("삭제 완료!");
+        loadStatus(currentPage, pageSize);
+      }
+    });
+
+    /*if(confirm(confirmMsg)) {
       $.ajax({
         url: "/process-status/delete",
         method: "POST",
@@ -220,7 +231,7 @@ $(document).ready(function(){
           loadStatus(currentPage, pageSize);
         }
       });
-    }
+    }*/
   });
 
   // 전체삭제

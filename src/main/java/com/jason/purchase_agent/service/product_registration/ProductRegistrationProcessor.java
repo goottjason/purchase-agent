@@ -3,10 +3,8 @@ package com.jason.purchase_agent.service.product_registration;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.jason.purchase_agent.dto.channel.coupang.CoupangApiResponse;
 import com.jason.purchase_agent.dto.product_registration.ProductImageUploadResult;
-import com.jason.purchase_agent.dto.product_registration.ProductRegistrationDto;
-import com.jason.purchase_agent.entity.ProcessStatus;
+import com.jason.purchase_agent.dto.product_registration.ProductRegistrationRequest;
 import com.jason.purchase_agent.entity.Product;
 import com.jason.purchase_agent.entity.ProductChannelMapping;
 import com.jason.purchase_agent.external.ChannelResultDto;
@@ -23,11 +21,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import static com.jason.purchase_agent.util.JsonUtils.*;
@@ -47,7 +43,7 @@ public class ProductRegistrationProcessor {
 
     // 1단계 상품DB 저장
     public boolean saveProductDB(
-            String batchId, ProductRegistrationDto productDto) {
+            String batchId, ProductRegistrationRequest productDto) {
         try {
             Product productEntity = new Product();
             BeanUtils.copyProperties(productDto, productEntity);
@@ -69,7 +65,7 @@ public class ProductRegistrationProcessor {
 
     // 2단계 이미지 로컬 다운로드
     public boolean downloadImages(
-            String batchId, ProductRegistrationDto productDto) {
+            String batchId, ProductRegistrationRequest productDto) {
         try {
             // 이미지 다운로드
             List<String> localPaths =
@@ -90,7 +86,7 @@ public class ProductRegistrationProcessor {
 
     // 3단계 이미지 업로드
     public boolean uploadImages(
-            String batchId, List<ProductRegistrationDto> dtos
+            String batchId, List<ProductRegistrationRequest> dtos
     ) {
         // 업로드할 이미지가 없으면 바로 실패 처리
         if (dtos.isEmpty()) return false;
@@ -113,7 +109,7 @@ public class ProductRegistrationProcessor {
             }
             // 각 DTO에 업로드된 링크 세팅 및 상태 업데이트
             boolean allSuccess = true;
-            for (ProductRegistrationDto dto : dtos) {
+            for (ProductRegistrationRequest dto : dtos) {
                 // 업로드된 링크가 있으면 세팅, 없으면 실패 처리
                 List<String> links = codeToLinks.get(dto.getCode());
                 String detailsJson = null;
@@ -132,7 +128,7 @@ public class ProductRegistrationProcessor {
             }
             return allSuccess;
         } catch (Exception e) {
-            for (ProductRegistrationDto dto : dtos) {
+            for (ProductRegistrationRequest dto : dtos) {
                 psr.updateProductStatus(batchId, dto.getCode(),
                         "UPLOAD_IMAGE", "FAIL", "ESM 서버 이미지 업로드 실패: " + e.getMessage(), null);
             }
@@ -142,7 +138,7 @@ public class ProductRegistrationProcessor {
 
     // 4단계 채널 등록
     public boolean registerChannels(
-            String batchId, ProductRegistrationDto dto, List<String> retryChannels) {
+            String batchId, ProductRegistrationRequest dto, List<String> retryChannels) {
 
         // (1) 이전에 이미 시도한 결과가 있다면 유지,
         //     없으면 신규 객체 생성 (재시도 상황 대응)

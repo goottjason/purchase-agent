@@ -1,7 +1,7 @@
 package com.jason.purchase_agent.dto.channel.coupang;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.jason.purchase_agent.dto.product_registration.ProductRegistrationDto;
+import com.jason.purchase_agent.dto.product_registration.ProductRegistrationRequest;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -372,7 +372,7 @@ public class CoupangProductRequest {
     // ---------------------------
     // == 빌더형 팩토리 메서드 ==
     // ---------------------------
-    public static CoupangProductRequest from(ProductRegistrationDto dto) {
+    public static CoupangProductRequest from(ProductRegistrationRequest dto) {
         DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
 
         String korMainName = cleanKorName(dto.getKorName());

@@ -12,6 +12,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -74,9 +75,7 @@ public class ElevenstApiUtil {
         } catch (Exception e) {
 
             // 네트워크 오류/파싱 실패 시 콘솔에 오류 및 요청 URL, 유형 출력
-            log.error("Elevenst API 요청 실패: {}", urlStr);
-            log.error("Elevenst 오류 내용: {} - {}", e.getClass().getSimpleName(), e.getMessage());
-
+            log.error("[ElevenstSendRequest] 요청 에러 (e.getMessage()={})", e.getMessage());
             // XML 파싱에 실패해도 기본 결과 코드 XML 반환(서비스 장애때도 XML 파싱이 깨지지 않기 위함)
             return "<resultCode>ERROR</resultCode><message>네트워크 오류</message>";
 

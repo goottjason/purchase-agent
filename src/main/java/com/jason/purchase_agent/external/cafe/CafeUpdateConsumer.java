@@ -26,11 +26,7 @@ public class CafeUpdateConsumer {
 
     @RabbitListener(queues = "price-update-cafe", concurrency = "1")
     public void handlePriceUpdate(PriceUpdateChannelMessage msg) {
-        log.info("[MQ][Cafe][PriceUpdate] 메시지 수신 - {}", msg);
-
         try {
-            log.info("[Cafe][Price] 가격 변경 API 호출 시작 - channelId={}, salePrice={}",
-                    msg.getChannelId1(), msg.getSalePrice());
             String responseJson = cafeApiService.updatePrice(msg.getChannelId1(), msg.getProductCode(), msg.getSalePrice());
             JsonNode root = objectMapper.readTree(responseJson);
 
@@ -40,37 +36,29 @@ public class CafeUpdateConsumer {
                 // 성공 케이스
                 status = "SUCCESS";
                 returnedMessage = String.format("가격: %,d원, ID: %s", msg.getSalePrice(), msg.getChannelId1());
-            } else if (root.has("error")) {
+                log.info("[{}][Cafe][Price] 성공 (cafeNo={}, salePrice={})",
+                        msg.getProductCode(), msg.getChannelId1(), msg.getSalePrice());
+            } else {
                 // 실패 케이스
                 JsonNode errorNode = root.path("error");
                 String code = errorNode.path("code").asText();
                 String message = errorNode.path("message").asText("상세 메시지 없음");
                 status = "FAIL";
                 returnedMessage = code + " : " + message;
-            } else {
-                // 예외적 파싱 실패 처리
-                status = "FAIL";
-                returnedMessage = "알 수 없는 응답: " + responseJson;
+                log.error("[{}][Cafe][Price] 실패 (responseJson={})",
+                        msg.getProductCode(), responseJson);
             }
 
             Map<String, Object> channelResult = new HashMap<>();
             channelResult.put("status", status);
             channelResult.put("message", returnedMessage);
 
-            log.info("[Cafe][PriceUpdate] 상태 병합 시작 - batchId={}, productCode={}, status={}",
-                    msg.getBatchId(), msg.getProductCode(), status);
-
             processStatusService.mergeChannelResult(
                     msg.getBatchId(), msg.getProductCode(), "cafe", channelResult
             );
-            log.debug("[Cafe][Price] 병합 완료");
 
             try { Thread.sleep(100); } catch (InterruptedException ignored) {}
-            log.debug("[MQ][Cafe][PriceUpdate] 처리 후 Thread.sleep(100ms)");
-
         } catch (Exception e) {
-            log.error("[MQ][Cafe][PriceUpdate] 처리 중 예외! - batchId={}, productCode={}, 원인={}",
-                    msg.getBatchId(), msg.getProductCode(), e.getMessage(), e);
 
             Map<String, Object> channelResult = new HashMap<>();
             channelResult.put("status", "FAIL");
@@ -79,17 +67,14 @@ public class CafeUpdateConsumer {
             processStatusService.mergeChannelResult(
                     msg.getBatchId(), msg.getProductCode(), "cafe", channelResult
             );
-
+            log.error("[{}][Cafe][Price] 실패 (e.getMessage()={})", msg.getProductCode(), e.getMessage());
             throw new AmqpRejectAndDontRequeueException("MQ 폐기(파싱 실패)", e);
         }
     }
     @RabbitListener(queues = "stock-update-cafe", concurrency = "1")
     public void handleStockUpdate(StockUpdateChannelMessage msg) {
-        log.info("[MQ][Cafe][StockUpdate] 메시지 수신 - {}", msg);
 
         try {
-            log.info("[Cafe][Stock] 재고 변경 API 호출 시작 - channelId={}, channelId2={}, stock={}",
-                    msg.getChannelId1(), msg.getChannelId2(), msg.getStock());
             String responseJson = cafeApiService.updateStock(
                     msg.getChannelId1(), msg.getChannelId2(), msg.getStock()
             );
@@ -99,41 +84,32 @@ public class CafeUpdateConsumer {
             String returnedMessage;
 
             if (root.has("inventory")) {
-                // 성공 케이스
                 status = "SUCCESS";
                 returnedMessage = String.format("재고: %,d개, ID: %s / %s",
                         msg.getStock(), msg.getChannelId1(), msg.getChannelId2());
-            } else if (root.has("error")) {
+                log.info("[{}][Cafe][Stock] 성공 (cafeNo={}, cafeOptCode={} stock={})",
+                        msg.getProductCode(), msg.getChannelId1(), msg.getChannelId2(), msg.getStock());
+            } else {
                 // 실패 케이스
                 JsonNode errorNode = root.path("error");
                 String code = errorNode.path("code").asText();
                 String message = errorNode.path("message").asText("상세 메시지 없음");
                 status = "FAIL";
                 returnedMessage = code + " : " + message;
-            } else {
-                // 예외적(파싱 실패 등)
-                status = "FAIL";
-                returnedMessage = "알 수 없는 응답: " + responseJson;
+                log.error("[{}][Cafe][Stock] 실패 (responseJson={})",
+                        msg.getProductCode(), responseJson);
             }
 
             Map<String, Object> channelResult = new HashMap<>();
             channelResult.put("status", status);
             channelResult.put("message", returnedMessage);
 
-            log.info("[Cafe][StockUpdate] 상태 병합 시작 - batchId={}, productCode={}, status={}",
-                    msg.getBatchId(), msg.getProductCode(), status);
-
             processStatusService.mergeChannelResult(
                     msg.getBatchId(), msg.getProductCode(), "cafe", channelResult
             );
-            log.debug("[Cafe][Stock] 병합 완료");
 
             try { Thread.sleep(100); } catch (InterruptedException ignored) {}
-            log.debug("[MQ][Cafe][StockUpdate] 처리 후 Thread.sleep(100ms)");
-
         } catch (Exception e) {
-            log.error("[MQ][Cafe][StockUpdate] 처리 중 예외! - batchId={}, productCode={}, 원인={}",
-                    msg.getBatchId(), msg.getProductCode(), e.getMessage(), e);
 
             Map<String, Object> channelResult = new HashMap<>();
             channelResult.put("status", "FAIL");
@@ -143,6 +119,7 @@ public class CafeUpdateConsumer {
                     msg.getBatchId(), msg.getProductCode(), "cafe", channelResult
             );
 
+            log.error("[{}][Cafe][Stock] 실패 (e.getMessage()={})", msg.getProductCode(), e.getMessage());
             throw new AmqpRejectAndDontRequeueException("MQ 폐기(파싱 실패)", e);
         }
     }

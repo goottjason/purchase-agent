@@ -227,7 +227,7 @@ public class CafeApiService {
             return response.toString();
 
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error("[CafeExecuteRequest] 요청 에러 (e.getMessage()={})", e.getMessage());
             return e.getMessage();
         }
     }
@@ -236,8 +236,6 @@ public class CafeApiService {
         String cafeNo, String productCode, Integer salePrice
     ) {
         // Map<String, Object> result = new HashMap<>();
-        log.info("[Cafe][Price] 가격 변경 요청 - cafeNo={}, salePrice={}",
-                cafeNo, salePrice);
         try {
             String putPath = String.format("/api/v2/admin/products/%s", cafeNo);
 
@@ -253,14 +251,13 @@ public class CafeApiService {
             requestObj.put("origin_place_value", "기타");
             requestObj.put("internal_product_name", productCode);
             jsonBody.put("request", requestObj); // 바깥쪽에 request 키로 추가
-            log.info("jsonBody.toString: {}", jsonBody.toString());
             // 실제 PUT 요청 실행
             String putResponseJson = executePutRequest("PUT", putPath, jsonBody.toString());
 
             return putResponseJson;
         } catch (Exception e) {
-            log.error("[Cafe][Price] 가격 변경 장애 - cafeNo={}, salePrice={}, 원인={}",
-                    cafeNo, salePrice, e.getMessage(), e);
+            log.error("[CafeUpdatePrice] 요청 에러 (cafeNo={}, salePrice={}, e.getMessage()={})",
+                    cafeNo, salePrice, e.getMessage());
             return "{}";
         }
     }
@@ -268,9 +265,6 @@ public class CafeApiService {
     public String updateStock(
             String cafeNo, String cafeOptCode, Integer stock
     ) {
-        // Map<String, Object> result = new HashMap<>();
-        log.info("[Cafe][Stock] 재고 변경 요청 - cafeNo={}, cafeOptCode={}, stock={}",
-                cafeNo, cafeOptCode, stock);
         try {
             String putPath = String.format("/api/v2/admin/products/%s/variants/%s/inventories", cafeNo, cafeOptCode);
 
@@ -290,8 +284,8 @@ public class CafeApiService {
 
             return putResponseJson;
         } catch (Exception e) {
-            log.error("[Cafe][Stock] 재고 변경 장애 - cafeNo={}, stock={}, 원인={}",
-                    cafeNo, stock, e.getMessage(), e);
+            log.error("[CafeUpdateStock] 요청 에러 (cafeNo={}, cafeOptCode={}, stock={}, e.getMessage()={})",
+                    cafeNo, cafeOptCode, stock, e.getMessage());
             return "{}";
         }
     }

@@ -7,19 +7,16 @@ import com.jason.purchase_agent.dto.process_status.ProcessStatusDto;
 import com.jason.purchase_agent.dto.product_registration.ProductRegistrationRetryMessage;
 import com.jason.purchase_agent.dto.product_registration.ProductRegistrationRetryRequest;
 import com.jason.purchase_agent.entity.ProcessStatus;
-import com.jason.purchase_agent.entity.Product;
 import com.jason.purchase_agent.messaging.MessageQueueService;
-import com.jason.purchase_agent.dto.product_registration.ProductRegistrationDto;
+import com.jason.purchase_agent.dto.product_registration.ProductRegistrationRequest;
 import com.jason.purchase_agent.dto.product_registration.ProductRegistrationMessage;
 import com.jason.purchase_agent.repository.jpa.ProcessStatusRepository;
 import com.jason.purchase_agent.repository.jpa.ProductRepository;
-import com.jason.purchase_agent.service.categories.CategoryService;
 import com.jason.purchase_agent.service.product_registration.ProductRegistrationService;
 import com.jason.purchase_agent.external.iherb.dto.IherbProductDto;
 import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 
@@ -44,13 +41,12 @@ public class ProductRegistrationController {
      */
     @GetMapping("/product-registration")
     public String productRegistrationPage() {
-        log.info("■ [STEP 1] 카테고리 및 제품수 선택");
+        // 프론트에서 loadCategoryTree() 호출 => GET("/categories/tree") 요청
         return "pages/product-registration";
     }
 
     /**
      * [STEP 2] 사용자가 카테고리/상품수 선택했을 때 상품 링크수집
-     *
      * @param categoryTreeDtos - 카테고리/상품수 정보
      * @param session    - 임시로 상품목록 보관
      */
@@ -81,7 +77,7 @@ public class ProductRegistrationController {
      */
     @PostMapping("/product-registration/step3-prepare-products")
     @ResponseBody
-    public List<ProductRegistrationDto> step3PrepareProducts(
+    public List<ProductRegistrationRequest> step3PrepareProducts(
             @RequestBody List<String> selectedIds, HttpSession session
     ) {
 
@@ -102,12 +98,12 @@ public class ProductRegistrationController {
                 .collect(Collectors.toList());          // 리스트로 모음
 
         // --- 후처리/상품등록에 활용할 수 있도록 오픈마켓용 상품 DTO로 변환 ---
-        List<ProductRegistrationDto> productRegistrationDtos =
+        List<ProductRegistrationRequest> productRegistrationRequests =
                 productRegistrationService.convertToProductRegistrationDto(selectedIherbProductDtos);
 
-        session.setAttribute("productRegistrationDtos", productRegistrationDtos);
+        session.setAttribute("productRegistrationDtos", productRegistrationRequests);
 
-        return productRegistrationDtos;
+        return productRegistrationRequests;
     }
 
     /**
@@ -116,16 +112,18 @@ public class ProductRegistrationController {
      * - DB에 배치 상태 초기레코드 등록
      * - API 응답으로 배치ID 반환
      *
-     * @param productRegistrationDtos - 클라이언트에서 전달한 최종 상품목록
+     * @param productRegistrationRequests - 클라이언트에서 전달한 최종 상품목록
      * @return 배치ID를 포함한 처리결과
      */
     @PostMapping("/product-registration/step4-submit-products")
     @ResponseBody
     public Map<String, String> submit(
-            @RequestBody List<ProductRegistrationDto> productRegistrationDtos
+            @RequestBody List<ProductRegistrationRequest> productRegistrationRequests
     ) {
-        // --- (1) 배치 ID 생성 + (2) DB에 배치 상태 등록 + (3) MQ에 메시지 발행 + (4) API 응답 ---
-        log.info("■ [STEP 4] 최종 상품 등록");
+
+        productRegistrationService.registerProducts(productRegistrationRequests);
+
+        /*// --- (1) 배치 ID 생성 + (2) DB에 배치 상태 등록 + (3) MQ에 메시지 발행 + (4) API 응답 ---
 
         // --- (1) 배치 ID 생성 ---
         String batchId = UUID.randomUUID().toString();
@@ -140,13 +138,13 @@ public class ProductRegistrationController {
 
         // --- (3) MQ에 메시지 발행 (배치 1개) ---
         ProductRegistrationMessage message = ProductRegistrationMessage.builder()
-                .batchId(batchId).requestedBy(requestedBy).requestedAt(now)
-                .products(productRegistrationDtos) // <-- 배치 전체를 한 메시지에
+                .batchId(batchId)
+                .products(productRegistrationRequests) // <-- 배치 전체를 한 메시지에
                 .build();
-        messageQueueService.publishProductRegistration(message);
+        messageQueueService.publishProductRegistration(message);*/
 
         // --- (4) API 응답 ---
-        return Map.of("status", "ok", "batchId", batchId);
+        return Map.of("status", "ok");
     }
 
 
@@ -173,13 +171,13 @@ public class ProductRegistrationController {
 
         if ("UPLOAD_IMAGE".equals(req.getStep())) {
             // 3단계 일괄: productCodes → products 변환
-            List<ProductRegistrationDto> products = req.getProductCodes()
+            List<ProductRegistrationRequest> products = req.getProductCodes()
                     .stream()
                     .map(code -> {
                         Optional<ProcessStatus> statusOpt = psr.findByBatchIdAndProductCode(batchId, code);
                         if (statusOpt.isPresent() && statusOpt.get().getDetails() != null) {
                             try {
-                                return objectMapper.readValue(statusOpt.get().getDetails(), ProductRegistrationDto.class);
+                                return objectMapper.readValue(statusOpt.get().getDetails(), ProductRegistrationRequest.class);
                             } catch (JsonProcessingException e) {
                                 throw new RuntimeException(e);
                             }
@@ -212,9 +210,9 @@ public class ProductRegistrationController {
                         + batchId + ", productCode=" + code);
             }
 
-            ProductRegistrationDto productDto;
+            ProductRegistrationRequest productDto;
             try {
-                productDto = objectMapper.readValue(statusOpt.get().getDetails(), ProductRegistrationDto.class);
+                productDto = objectMapper.readValue(statusOpt.get().getDetails(), ProductRegistrationRequest.class);
             } catch (JsonProcessingException e) {
                 throw new RuntimeException(e);
             }

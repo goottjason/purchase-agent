@@ -354,7 +354,7 @@ public class SmartstoreApiUtil {
         try {
             accessToken = getAccessToken();
         } catch (Exception e) {
-            log.error("API 토큰 발행 실패: {}", e.getMessage(), e);
+            log.error("SmartstoreSimpleHttpExecute] API 토큰 발행 실패 (e.getMessage()={})", e.getMessage());
             // 네트워크 등 치명적 장애일 경우 null 반환 또는 특별 코드 반환
             return e.getMessage();
             // throw new RuntimeException("Smartstore API 토큰 반환 불가", e);
@@ -388,7 +388,7 @@ public class SmartstoreApiUtil {
             }
 
         } catch (Exception e) {
-            log.error("API 호출 예외 ({} {}): {}", method, url, e.getMessage(), e);
+            log.error("SmartstoreSimpleHttpExecute] 요청 에러 (e.getMessage()={})", e.getMessage());
             return e.getMessage();
             // throw new RuntimeException("Smartstore 서버 API 호출 실패", e);
         }

@@ -38,14 +38,14 @@ public class SmartstoreUpdateConsumer {
                 // 실패 케이스 (code 존재)
                 status = "FAIL";
                 returnedMessage = code + " : " + root.path("message").asText("상세 메시지 없음");
+                log.error("[{}][Smartstore][Price] 실패 (responseJson={})", msg.getProductCode(), responseJson);
             } else {
                 // 성공 케이스 (code 없음)
                 status = "SUCCESS";
-                returnedMessage = String.format("가격: %,d원, ID: %s",
-                        msg.getSalePrice(), msg.getChannelId1());
+                returnedMessage = String.format("가격: %,d원, ID: %s", msg.getSalePrice(), msg.getChannelId1());
+                log.info("[{}][Smartstore][Price] 성공 (originProductNo={}, salePrice={})"
+                        , msg.getProductCode(), msg.getChannelId1(), msg.getSalePrice());
             }
-
-            log.info("[{}][Smartstore][Price] 성공", msg.getProductCode());
 
             Map<String, Object> channelResult = new HashMap<>();
             channelResult.put("status", status);
@@ -66,7 +66,7 @@ public class SmartstoreUpdateConsumer {
                     msg.getBatchId(), msg.getProductCode(), "smartstore", channelResult
             );
 
-            log.error("[{}][Smartstore][Price] 실패({})", msg.getProductCode(), e.getMessage());
+            log.error("[{}][Smartstore][Price] 실패 (e.getMessage()={})", msg.getProductCode(), e.getMessage());
             throw new AmqpRejectAndDontRequeueException("MQ 폐기(파싱 실패)", e);
         }
     }
@@ -85,18 +85,18 @@ public class SmartstoreUpdateConsumer {
                 // 실패 케이스
                 status = "FAIL";
                 returnedMessage = code + " : " + root.path("message").asText("상세 메시지 없음");
+                log.error("[{}][Smartstore][Stock] 실패 (responseJson={})", msg.getProductCode(), responseJson);
             } else {
                 // 성공 케이스
                 status = "SUCCESS";
-                returnedMessage = String.format("재고: %d개, ID: %s",
-                        msg.getStock(), msg.getChannelId1());;
+                returnedMessage = String.format("재고: %d개, ID: %s", msg.getStock(), msg.getChannelId1());;
+                log.info("[{}][Smartstore][Stock] 성공 (originProductNo={}, stock={})"
+                        , msg.getProductCode(), msg.getChannelId1(), msg.getStock());
             }
 
             Map<String, Object> channelResult = new HashMap<>();
             channelResult.put("status", status);
             channelResult.put("message", returnedMessage);
-
-            log.info("[{}][Smartstore][Stock] 성공", msg.getProductCode());
 
             processStatusService.mergeChannelResult(
                     msg.getBatchId(), msg.getProductCode(), "smartstore", channelResult
@@ -113,8 +113,7 @@ public class SmartstoreUpdateConsumer {
                     msg.getBatchId(), msg.getProductCode(), "smartstore", channelResult
             );
 
-            log.error("[{}][Smartstore][Stock] 실패({})", msg.getProductCode(), e.getMessage());
-            throw new AmqpRejectAndDontRequeueException("MQ 폐기(파싱 실패)", e);
+            log.error("[{}][Smartstore][Stock] 실패 (e.getMessage()={})", msg.getProductCode(), e.getMessage());            throw new AmqpRejectAndDontRequeueException("MQ 폐기(파싱 실패)", e);
         }
     }
 

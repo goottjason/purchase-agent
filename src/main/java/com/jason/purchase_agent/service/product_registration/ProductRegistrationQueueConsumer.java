@@ -53,7 +53,7 @@ public class ProductRegistrationQueueConsumer {
         log.info("■ [배치 시작] BatchId={} 상품등록 배치 시작", message.getBatchId());
 
         String batchId = message.getBatchId();
-        List<ProductRegistrationDto> products = message.getProducts();
+        List<ProductRegistrationRequest> products = message.getProducts();
         LocalDateTime now = LocalDateTime.now();
 
         // '배치' 로그 업데이트 - BATCH_PROGRESS (IN_PROGRESS)
@@ -65,8 +65,8 @@ public class ProductRegistrationQueueConsumer {
          *  - 각 상품별로 1,2단계 처리
          *  - 1,2단계 모두 성공한 상품만 3단계 업로드 대상 리스트에 추가
          */
-        List<ProductRegistrationDto> readyForImageUpload = new ArrayList<>();
-        for (ProductRegistrationDto productDto : products) {
+        List<ProductRegistrationRequest> readyForImageUpload = new ArrayList<>();
+        for (ProductRegistrationRequest productDto : products) {
             // 유저가 생성한 각 상품의 등록정보를 JSON 형태로 details에 저장
             String details  = safeJsonString(objectMapper, productDto);
             // '배치의 각 상품' 로그 등록 - SAVE_PRODUCT (INIT)
@@ -93,7 +93,7 @@ public class ProductRegistrationQueueConsumer {
 
         // 4단계 채널 등록
         // 업로드 성공인 경우만 진행 (이미 FAIL 처리된 상품은 3단계에서 기록됨)
-        for (ProductRegistrationDto dto : readyForImageUpload) {
+        for (ProductRegistrationRequest dto : readyForImageUpload) {
             processor.registerChannels(batchId, dto, List.of("coupang","smartstore","elevenst"));
         }
 
@@ -112,8 +112,8 @@ public class ProductRegistrationQueueConsumer {
 
         // 3단계 재시도의 경우 상품리스트 단위로 받음, 1,2,4단계 재시도의 경우 단일 상품
         // 3단계 재시도의 경우, 2단계까지 성공한 상품들만 리스트로 받음
-        List<ProductRegistrationDto> dtos = message.getProducts(); // 여러 상품
-        ProductRegistrationDto dto = message.getProduct(); // 단일 상품 (1,2,4단계)
+        List<ProductRegistrationRequest> dtos = message.getProducts(); // 여러 상품
+        ProductRegistrationRequest dto = message.getProduct(); // 단일 상품 (1,2,4단계)
         List<String> retryChannels = message.getRetryChannels(); // 재시도할 채널 목록 (4단계)
 
         switch (startStep) {
@@ -125,7 +125,7 @@ public class ProductRegistrationQueueConsumer {
                 // 여러 상품을 일괄로!
                 if (!processor.uploadImages(batchId, dtos)) return; // 3단계 실패시 이후 단계 진행 안함
                 // 업로드 성공하면 이후 채널등록 진행
-                for (ProductRegistrationDto d : dtos) {
+                for (ProductRegistrationRequest d : dtos) {
                     processor.registerChannels(batchId, d, retryChannels);
                 }
                 break;

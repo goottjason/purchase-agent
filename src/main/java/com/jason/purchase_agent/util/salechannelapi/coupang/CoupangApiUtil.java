@@ -19,6 +19,7 @@ import java.util.zip.GZIPInputStream;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jason.purchase_agent.dto.channel.coupang.CoupangApiResponse;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
@@ -31,7 +32,7 @@ import org.apache.poi.ss.formula.functions.T;
 import static com.jason.purchase_agent.util.http.UrlUtils.buildParamsString;
 import static com.jason.purchase_agent.util.http.UrlUtils.buildPathWithParams;
 
-
+@Slf4j
 public class CoupangApiUtil {
     public static final String VENDOR_ID = "A00213055";
     public static final String API_ENDPOINT = "https://api-gateway.coupang.com";
@@ -136,7 +137,7 @@ public class CoupangApiUtil {
             br.close();
             return response.toString();
         } catch (Exception e) {
-            System.err.println("HTTP 요청 중 예외 발생: " + e.getMessage());
+            log.error("[CoupangExecuteRequest] 요청 에러 (e.getMessage()={})", e.getMessage());
             return e.getMessage();
         }
     }

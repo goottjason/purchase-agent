@@ -38,17 +38,19 @@ public class ElevenstUpdateConsumer {
 
             // 성공 조건: resultCode == 200 || (가격 동일시 보통 "동일한 가격"류 메시지가 포함)
             boolean findSuccess = "200".equals(code)
-                    || normalizedMessage.contains("동일") // ex: "요청하신 가격으로 이미 설정되어 있습니다."
-                    || normalizedMessage.contains("변경된 값이 없습니다.") // 11번가의 특유 메시지
-                    || normalizedMessage.contains("같은 가격"); // 기타 실질 성공 메시지 패턴 추가 가능
+                    || normalizedMessage.contains("변경될 판매가격이 같습니다."); // 11번가의 특유 메시지
 
             Map<String, Object> channelResult = new HashMap<>();
             if (findSuccess) {
                 channelResult.put("status", "SUCCESS");
                 channelResult.put("message", String.format("가격: %,d원, ID: %s", msg.getSalePrice(), msg.getChannelId1()));
+                log.info("[{}][Elevenst][Price] 성공 (elevenstId={}, salePrice={})",
+                        msg.getProductCode(), msg.getChannelId1(), msg.getSalePrice());
             } else {
                 channelResult.put("status", "FAIL");
                 channelResult.put("message", code + " : " + returnedMessage);
+                log.error("[{}][Elevenst][Price] 실패 (responseXml={})",
+                        msg.getProductCode(), responseXml);
             }
 
             processStatusService.mergeChannelResult(
@@ -65,18 +67,14 @@ public class ElevenstUpdateConsumer {
             processStatusService.mergeChannelResult(
                     msg.getBatchId(), msg.getProductCode(), "elevenst", channelResult
             );
-
+            log.error("[{}][Elevenst][Price] 실패 (e.getMessage()={})", msg.getProductCode(), e.getMessage());
             throw new AmqpRejectAndDontRequeueException("MQ 폐기(파싱 실패)", e);
         }
     }
 
     @RabbitListener(queues = "stock-update-elevenst", concurrency = "1")
     public void handleStockUpdate(StockUpdateChannelMessage msg) {
-        log.info("[MQ][Elevenst][StockUpdate] 메시지 수신 - {}", msg);
-
         try {
-            log.info("[ElevenstAPI][Stock] 재고 변경 API 호출 시작 - channelId={}, stock={}", msg.getChannelId1(), msg.getStock());
-
             String responseXml = elevenstApiService.updateStock(msg.getChannelId1(), msg.getStock());
             XmlMapper xmlMapper = new XmlMapper();
             Map<String, Object> xmlResult = xmlMapper.readValue(responseXml, Map.class);
@@ -96,25 +94,21 @@ public class ElevenstUpdateConsumer {
             if (findSuccess) {
                 channelResult.put("status", "SUCCESS");
                 channelResult.put("message", String.format("재고: %,d개, ID: %s", msg.getStock(), msg.getChannelId1()));
+                log.info("[{}][Elevenst][Stock] 성공 (elevenstId={}, stock={})",
+                        msg.getProductCode(), msg.getChannelId1(), msg.getStock());
             } else {
                 channelResult.put("status", "FAIL");
                 channelResult.put("message", code + " : " + returnedMessage);
+                log.error("[{}][Elevenst][Stock] 실패 (responseXml={})",
+                        msg.getProductCode(), responseXml);
             }
-
-            log.info("[Elevenst][StockUpdate] 상태 병합 시작 - batchId={}, productCode={}, status={}",
-                    msg.getBatchId(), msg.getProductCode(), channelResult.get("status"));
 
             processStatusService.mergeChannelResult(
                     msg.getBatchId(), msg.getProductCode(), "elevenst", channelResult
             );
-            log.debug("[Elevenst][Stock] 병합 완료");
 
             try { Thread.sleep(100); } catch (InterruptedException ignored) {}
-            log.debug("[MQ][Elevenst][StockUpdate] 처리 후 Thread.sleep(100ms)");
-
         } catch (Exception e) {
-            log.error("[MQ][Elevenst][StockUpdate] 처리 중 예외! - batchId={}, productCode={}, 원인={}",
-                    msg.getBatchId(), msg.getProductCode(), e.getMessage(), e);
 
             Map<String, Object> channelResult = new HashMap<>();
             channelResult.put("status", "FAIL");
@@ -124,6 +118,7 @@ public class ElevenstUpdateConsumer {
                     msg.getBatchId(), msg.getProductCode(), "elevenst", channelResult
             );
 
+            log.error("[{}][Elevenst][Stock] 실패 (e.getMessage()={})", msg.getProductCode(), e.getMessage());
             throw new AmqpRejectAndDontRequeueException("MQ 폐기(파싱 실패)", e);
         }
     }

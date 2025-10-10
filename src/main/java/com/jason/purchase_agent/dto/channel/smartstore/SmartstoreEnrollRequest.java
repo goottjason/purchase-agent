@@ -1,6 +1,6 @@
 package com.jason.purchase_agent.dto.channel.smartstore;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.jason.purchase_agent.dto.product_registration.ProductRegistrationDto;
+import com.jason.purchase_agent.dto.product_registration.ProductRegistrationRequest;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -604,7 +604,7 @@ public class SmartstoreEnrollRequest {
     // ---------------------------
     // == 빌더형 팩토리 메서드 ==
     // ---------------------------
-    public static SmartstoreEnrollRequest from(ProductRegistrationDto dto) {
+    public static SmartstoreEnrollRequest from(ProductRegistrationRequest dto) {
 
         List<String> imageLinks = dto.getSmartstoreImageLinks();
         Images images = Images.builder()

@@ -2,6 +2,7 @@ package com.jason.purchase_agent.messaging;
 
 import com.jason.purchase_agent.dto.autoupdate.AutoUpdateMessage;
 import com.jason.purchase_agent.dto.product_registration.ProductRegistrationMessage;
+import com.jason.purchase_agent.dto.product_registration.ProductRegistrationRequest;
 import com.jason.purchase_agent.dto.product_registration.ProductRegistrationRetryMessage;
 import com.jason.purchase_agent.dto.products.*;
 import com.jason.purchase_agent.entity.Product;
@@ -25,6 +26,14 @@ public class MessageQueueService {
     private static final String PRODUCTS_BATCH_MANUAL_PRICE_STOCK_UPDATE_QUEUE =
             "products.batch_manual_price_stock_update_queue";
 
+    public void publishRegisterEachProduct(
+            ProductRegistrationRequest request, String batchId
+    ) {
+        ProductRegistrationMessage msg = ProductRegistrationMessage.builder()
+                .batchId(batchId)
+                .request(request)
+                .build();
+    }
 
     public void publishCrawlAndUpdateEachProductBySupplier(
             Integer marginRate, Integer couponRate, Integer minMarginPrice,
@@ -204,6 +213,8 @@ public class MessageQueueService {
         // (Spring은 직렬화 자동 처리, 메시지 = 자바 객체 → MQ에 들어감)
         // 큐에 쌓이고 나면 오토MQ Consumer에서 알아서 병렬로 처리 시작됨
     }
+
+
 
     /*public void publishPriceUpdate(String channel, String productCode, String channelProductId, Integer newPrice) {
         ChannelUpdateMessage message = ChannelUpdateMessage.builder()

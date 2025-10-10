@@ -22,7 +22,7 @@ public class IherbProductDto {
     private String userCategoryName; // 비타민
     private String userCategoryPath; //
 
-    private String promoBanner;
+    // private String promoBanner;
     private List<List<CanonicalPath>> canonicalPaths;
     private String brandName;
     private String brandUrl;

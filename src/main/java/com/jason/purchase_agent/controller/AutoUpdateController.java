@@ -5,6 +5,7 @@ import com.jason.purchase_agent.service.products.ProductService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -12,12 +13,13 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
-@RestController
+@Controller
 @RequiredArgsConstructor
 public class AutoUpdateController {
     private final ProductService productService;
 
     @PostMapping("/auto-update/run")
+    @ResponseBody
     public ResponseEntity<?> crawlAndUpdateBySupplier (
             @RequestParam Integer marginRate,
             @RequestParam Integer couponRate,
@@ -29,14 +31,13 @@ public class AutoUpdateController {
         List<ProductUpdateRequest> requests = productService.makeRequestsBySupplier(supplierCode);
 
         // 원하는 상품만 code로 필터
-        List<ProductUpdateRequest> filteredRequests = requests.stream()
+        /*List<ProductUpdateRequest> filteredRequests = requests.stream()
                 .filter(req -> "201203IHB006".equals(req.getProductDto().getCode()))
-                .collect(Collectors.toList());
+                .collect(Collectors.toList());*/
 
         // 각 상품별 메세지 발행
-        // productService.crawlAndUpdateBySupplier(marginRate, couponRate, minMarginPrice, requests);
-        // log.info("filteredRequests: {}", filteredRequests);
-        productService.crawlAndUpdateBySupplier(marginRate, couponRate, minMarginPrice, filteredRequests);
+        productService.crawlAndUpdateBySupplier(marginRate, couponRate, minMarginPrice, requests);
+        // productService.crawlAndUpdateBySupplier(marginRate, couponRate, minMarginPrice, filteredRequests);
 
         return ResponseEntity.ok(Map.of(
                 "success", true,

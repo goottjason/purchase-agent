@@ -5,7 +5,7 @@ import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlElementWrapper;
 import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlProperty;
 import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlRootElement;
 
-import com.jason.purchase_agent.dto.product_registration.ProductRegistrationDto;
+import com.jason.purchase_agent.dto.product_registration.ProductRegistrationRequest;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -588,7 +588,7 @@ public class ElevenstEnrollRequest {
         }
     }
 
-    public static ElevenstEnrollRequest fromForm(ProductRegistrationDto form) {
+    public static ElevenstEnrollRequest fromForm(ProductRegistrationRequest form) {
         List<String> images = form.getUploadedImageLinks();
         String prdImage01 = images.size() > 0 ? images.get(0) : null;
         String prdImage02 = images.size() > 1 ? images.get(1) : null;

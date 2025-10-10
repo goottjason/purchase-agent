@@ -2,16 +2,19 @@ package com.jason.purchase_agent.service.product_registration;
 
 import com.jason.purchase_agent.dto.categories.CategoryTreeDto;
 import com.jason.purchase_agent.dto.process_status.ProcessStatusDto;
-import com.jason.purchase_agent.dto.product_registration.ProductRegistrationDto;
-import com.jason.purchase_agent.dto.product_registration.ProductRegistrationRetryMessage;
-import com.jason.purchase_agent.dto.product_registration.ProductRegistrationRetryRequest;
+import com.jason.purchase_agent.dto.product_registration.ProductImageUploadResult;
+import com.jason.purchase_agent.dto.product_registration.ProductRegistrationRequest;
 import com.jason.purchase_agent.external.iherb.IherbCategoryCrawler;
 import com.jason.purchase_agent.external.iherb.IherbProductCrawler;
 import com.google.gson.Gson;
 import com.jason.purchase_agent.external.iherb.dto.IherbProductDto;
+import com.jason.purchase_agent.messaging.MessageQueueService;
 import com.jason.purchase_agent.repository.jpa.CategoryRepository;
 import com.jason.purchase_agent.repository.jpa.ProcessStatusRepository;
 import com.jason.purchase_agent.repository.jpa.ProductRepository;
+import com.jason.purchase_agent.service.process_status.ProcessStatusService;
+import com.jason.purchase_agent.util.downloader.ImageDownloader;
+import com.jason.purchase_agent.util.uploader.UploadImagesApi;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -23,18 +26,22 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import static com.jason.purchase_agent.util.JsonUtils.safeJsonString;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class ProductRegistrationService {
-
+    private final UploadImagesApi uploadImagesApi;
     private final CategoryRepository categoryRepository; // 카테고리 DB 테이블 엑세스
     private final ProductRepository productRepository; // 상품 DB 테이블 엑세스
     private final IherbProductCrawler iherbProductCrawler; // iHerb 크롤러
     private final IherbCategoryCrawler iherbCategoryCrawler;
-    private final ProcessStatusRepository processStatusRepository;
+    private final ProcessStatusRepository psr;
+    private final ProcessStatusService pss;
     private static final Gson gson = new Gson();
-    private Double BASE_MARGIN_RATE = 23.0;
+    private final MessageQueueService messageQueueService;
+    private Double BASE_MARGIN_RATE = 20.0;
 
     /**
      * [Step 2]
@@ -46,73 +53,39 @@ public class ProductRegistrationService {
     public List<IherbProductDto> fetchProducts(
             List<CategoryTreeDto> categoryTreeDtos
     ) {
-        log.info("■ [STEP 2] □ 서비스 PARAMETER :: List<CategoryTreeDto> categoryTreeDtos");
+        // 1. 이미 등록된 IHB 상품번호 SET
+        Set<String> registeredProductIds = new HashSet<>(productRepository.findAllProdIdsByIherbFromSourceLink());
+        // 2. 크롤링 결과 담을 리스트
+        List<IherbProductDto> resultDtos = new ArrayList<>();
 
-        // 1. IHB상품번호 누적용 빈 리스트
-        List<String> productIds = new ArrayList<>();
+        // 3. 카테고리별 크롤링 & 상품정보 수집
+        for (CategoryTreeDto category : categoryTreeDtos) {
+            // IHB 상품번호 크롤링 + categoryTreeDto에 set
+            List<String> productIds = iherbCategoryCrawler.getTopProductIds(
+                    category.getLink(), category.getProductCount(), category.getSortOrder());
+            category.setProductIds(productIds);
 
-        // 2. IherbProductDto를 담을 빈 리스트
-        List<IherbProductDto> iherbProductDtos = new ArrayList<>();
-
-        // 3. Product 테이블에 이미 등록된 IHB상품번호 SET
-        Set<String> registeredProductIdsFromProduct =
-                new HashSet<>(productRepository.findAllProdIdsByIherbFromSourceLink());
-
-        // 4. 카테고리별로 상품수에 따라 상품 크롤링
-        for (CategoryTreeDto cat : categoryTreeDtos) {
-            Integer sortOrder = cat.getSortOrder();
-            // 바로 카테고리별 상품 ID 리스트 얻기
-            List<String> ids = iherbCategoryCrawler.getTopProductIds(
-                    cat.getLink(), cat.getProductCount(), sortOrder
-            );
-            cat.setProductIds(ids);
-        }
-
-        // 5. 수집한 링크 각각에 대해
-        for (CategoryTreeDto cat : categoryTreeDtos) {
-            productIds = cat.getProductIds();
             for (String productId : productIds) {
-
-                // 5-1) 이미 등록된 제품인 경우 continue (skip)
-                if (registeredProductIdsFromProduct.contains(productId)) continue;
-
-                // 5-2) 크롤러 차단/딜레이 우회 (2~7초)
+                // 이미 등록된 제품은 skip
+                if (registeredProductIds.contains(productId)) continue;
+                // 크롤러 차단/딜레이 우회
+                try { Thread.sleep(iherbProductCrawler.getRandomDelay()); } catch (InterruptedException ignored) {}
+                // 상품 JSON → DTO 변환, 예외처리
                 try {
-                    Thread.sleep(iherbProductCrawler.getRandomDelay());
-                } catch (Exception ignored) {
-                }
-
-                // 5-3) OkHttp 등으로 상품 json 수집 및 파싱
-                try {
-                    // String 형태의 json 수집
                     String productJson = iherbProductCrawler.crawlProductAsJson(productId);
+                    IherbProductDto iherbDto = IherbProductDto.fromJsonWithLinks(productJson);
 
-                    // String 형태의 json -> IherbProductDto로 변환
-                    IherbProductDto dto = IherbProductDto.fromJsonWithLinks(productJson);
+                    // 사용자 지정 카테고리 정보 세팅
+                    iherbDto.setUserCategoryName(category.getName());
+                    iherbDto.setUserCategoryPath(category.getPath());
 
-                    // supplementFacts, ingredients의 "를 '로 치환
-                    dto.setSupplementFacts(
-                            dto.getSupplementFacts() == null ? null : dto.getSupplementFacts().replace("\"", "'")
-                    );
-                    dto.setIngredients(
-                            dto.getIngredients() == null ? null : dto.getIngredients().replace("\"", "'")
-                    );
-
-                    // 각 상품에 categoryName, categoryPath 세팅
-                    dto.setUserCategoryName(cat.getName());
-                    dto.setUserCategoryPath(cat.getPath());
-
-                    // iherbProductDtos 리스트에 담기
-                    iherbProductDtos.add(dto);
+                    resultDtos.add(iherbDto);
                 } catch (Exception e) {
-                    log.error("상품 상세 크롤링 실패: {} ({})", productId, e.getMessage());
+                    log.error("상품 상세 크롤링 실패: {} ({})", productId, e.toString());
                 }
             }
         }
-
-        log.info("■ [STEP 2] □ 서비스 RETURN :: List<IherbProductDtos> iherbProductDtos");
-
-        return iherbProductDtos;
+        return resultDtos;
     }
 
 
@@ -125,155 +98,175 @@ public class ProductRegistrationService {
      * @param selectedIherbProductDtos 선택된 Iherb 상품 DTO 리스트 (상품정보 원본)
      * @return 오픈마켓용 최종 등록 정보 리스트 (EnrollProductFormDto)
      */
-    public List<ProductRegistrationDto> convertToProductRegistrationDto(
+    public List<ProductRegistrationRequest> convertToProductRegistrationDto(
             List<IherbProductDto> selectedIherbProductDtos
     ) {
-
-        List<ProductRegistrationDto> productRegistrationDtos = new ArrayList<>();
+        List<ProductRegistrationRequest> dtos = new ArrayList<>();
         String today = LocalDate.now().format(DateTimeFormatter.ofPattern("yyMMdd"));
         String codePrefix = today + "IHB";
 
-        // 1. 오늘자 prefix로 시작하는 기등록 상품코드 중 가장 큰 seq 찾기
-        int maxSeq = productRepository.findMaxSeqByCodePrefix(codePrefix);
-        int seq = maxSeq + 1; // 신규 등록은 다음 번호부터
-        // 3. 각 상품(IherbProductDto)에 대하여 ProductRegistrationDto 변환
+        int seq = productRepository.findMaxSeqByCodePrefix(codePrefix) + 1;
+
         for (IherbProductDto iherbDto : selectedIherbProductDtos) {
-
-            ProductRegistrationDto dto = new ProductRegistrationDto();
-
-            // 1. code : 상품코드 (예: 250910IHB001) - 날짜+타입+세자리번호
-            String code = today + "IHB" + String.format("%03d", seq++);
-            dto.setCode(code);
-
-            // 2. link : 상품원본링크
-            dto.setLink(iherbDto.getUrl());
-
-            // 3. unitValue, unit : 제품의 개당 단위
-            String packageQuantity = iherbDto.getPackageQuantity();
-            String unit = "";
-            int unitValue = 0;
-
-            if (packageQuantity != null) {
-                // 1. 패턴: 소수점 포함 (공백 구분, 단위 포함)
-                // ex: "946.733 ml", "500 개", "180 정"
-                Pattern pat = Pattern.compile("^([\\d]+)(?:\\.\\d+)?\\s*([a-zA-Z가-힣]+)?$");
-                Matcher m = pat.matcher(packageQuantity.trim());
-                if (m.find()) {
-                    String numStr = m.group(1); // 정수부분
-                    String unitStr = m.group(2) != null ? m.group(2) : ""; // 단위
-
-                    unitValue = Integer.parseInt(numStr);
-                    unit = unitStr;
-                }
-            }
-            String korName = iherbDto.getDisplayName();
-            if (korName != null && unitValue > 0) {
-                Pattern unitPat = Pattern.compile(unitValue + "(정|캡슐|포|알|타블릿)");
-                Matcher unitM = unitPat.matcher(korName);
-                if (unitM.find()) {
-                    unit = unitM.group(1); // korName에서 찾은 실제 단위로 변경
-                }
-            }
-            dto.setUnitValue(unitValue);  // 예: 946
-            dto.setUnit(unit);            // 예: "ml"
-
-            // 4. buyPrice : 실구매가(Iherb 기준 온라인 할인가 기준)
-            dto.setBuyPrice(iherbDto.getDiscountPriceAmount());
-
-            // 5. packQty, salePrice : 패킹수량, 최종판매가 산정
-            //    - 패킹수와 마진을 조정해 4만원 이상 대의 가격을 맞추고, 가장 근접한 결과 반환
-            Double discountPrice = iherbDto.getDiscountPriceAmount();
-            int packQty = 1;          // 기본 패킹수량
-            int salePrice = 0;          // 계산된 최종판매가
-            double margin = (1 + (BASE_MARGIN_RATE/100.0));        // 최초 마진율(23%) : 기본값
-
-            for (int q = 1; q <= 1000; q++) {
-                // 4만원 이상 대의 가격이 나오도록 패킹수량 증가
-                double price = Math.round(discountPrice * q * margin / 100.0) * 100; // 백원단위까지 반올림
-                if (price >= 40000) {
-                    packQty = q;
-                    salePrice = (int) price;
-                    break;
-                }
-            }
-            dto.setSalePrice(salePrice);
-            dto.setPackQty(packQty);
-
-            // 6. brandName : 브랜드명
-            //    - brandName 컬럼값 수정 : '영문 (한글)' 형식이라면 '한글'로 수정
+            ProductRegistrationRequest request = new ProductRegistrationRequest();
+            // 1. 상품 코드
+            request.getProductDto().setCode("%sIHB%03d".formatted(today, seq++));
+            // 2. 원본 링크
+            request.getProductDto().setLink(iherbDto.getUrl());
+            // 3. 패키지 단위 자동 파싱
+            parseUnitAndValue(iherbDto.getPackageQuantity(), iherbDto.getDisplayName(), request);
+            // 4. 실구매가
+            request.getProductDto().setBuyPrice(iherbDto.getDiscountPriceAmount());
+            // 5. 가격 산정 및 패킹수량
+            setPackQtyAndSalePrice(iherbDto.getDiscountPriceAmount(), request);
+            // 6. 브랜드명(한글만)
             String brandName = iherbDto.getBrandName();
-            if (brandName != null && brandName.matches(".*\\(.*\\).*")) {
-                // 괄호 안 내용 전체를 추출 (한글, 영문, 숫자, 공백 모두 OK)
-                String inside = brandName.replaceAll(".*\\(([^)]*)\\).*", "$1").trim();
-                dto.setBrandName(inside);
-            }
+            request.getProductDto().setBrandName((brandName != null && brandName.matches(".*\\(.*\\).*"))
+                    ? brandName.replaceAll(".*\\(([^)]*)\\).*", "$1").trim()
+                    : brandName);
+            // 7~9. 각종 이름, 타이틀, 재고
+            request.getProductDto().setEngName(iherbDto.getDisplayEngName());
+            request.getProductDto().setKorName(iherbDto.getDisplayName());
+            request.getProductDto().setTitle(iherbDto.getDisplayName());
+            request.getProductDto().setStock(Boolean.TRUE.equals(iherbDto.getIsAvailableToPurchase()) ? 500 : 0);
+            // 10~13. 기타 상세 정보
+            request.getProductDto().setDetailsHtml(null);
+            request.setImageLinks(iherbDto.getImageLinks());
+            request.setUploadedImageLinks(null);
+            // 14. 상품 타입(카테고리 기반 분류)
+            request.setProductType(parseProductType(iherbDto.getUserCategoryPath()));
+            // 15. 카테고리명 리스트(Fast flatMap)
+            request.setCategoryNames(Optional.ofNullable(iherbDto.getCanonicalPaths())
+                    .map(paths -> paths.stream()
+                            .flatMap(List::stream)
+                            .map(IherbProductDto.CanonicalPath::getDisplayName)
+                            .filter(Objects::nonNull)
+                            .toList())
+                    .orElseGet(Collections::emptyList));
 
-            // 7. korName, engName, title : 상품명
-            dto.setEngName(iherbDto.getDisplayEngName());
-            dto.setKorName(iherbDto.getDisplayName());
-            dto.setTitle(iherbDto.getDisplayName()); // 자바스크립트에서 패킹수량, 브랜드명과 조합
+            // 16. 마진율
+            request.getProductDto().setMarginRate(BASE_MARGIN_RATE);
 
-            // 8. stock : 재고
-            dto.setStock(iherbDto.getIsAvailableToPurchase() ? 500 : 0);
-
-            // 9. detailsHtml : 상세페이지(HTML)
-            dto.setDetailsHtml(null); // 추후 최종 등록 단계에서 수정
-
-            // 10. imageLinks : 이미지링크
-            dto.setImageLinks(iherbDto.getImageLinks());
-
-            // 11. uploadedImageLinks : 업로드된 이미지링크
-            dto.setUploadedImageLinks(null); // 추후 최종 등록 단계에서 수정
-
-            // 12. ingredients : 성분표
-            dto.setIngredients(iherbDto.getIngredients());
-
-            // 13. supplementFacts : 상품 설명
-            dto.setSupplementFacts(iherbDto.getSupplementFacts());
-
-            // 14. productType : 고시정보 구분
-            String path = iherbDto.getUserCategoryPath();
-            String productType = null;
-            if (path != null && path.length() >= 4) {
-                String firstPath = path.substring(0, 4);
-                if ("0001".equals(firstPath) || "0002".equals(firstPath)) {
-                    productType = "HEALTH";
-                } else if ("0003".equals(firstPath)) {
-                    productType = "FOOD";
-                }
-                // else는 (필요하다면) productType = "ETC" 등으로 세팅
-            }
-            dto.setProductType(productType);
-
-            // 15. categoryNames : 카테고리리스트
-            List<List<IherbProductDto.CanonicalPath>> canonicalPaths = iherbDto.getCanonicalPaths();
-            List<String> categoryNames = canonicalPaths == null ? Collections.emptyList() :
-                    canonicalPaths.stream()
-                            .flatMap(list -> list.stream())                  // List<List<..>> → List<..> 평탄화
-                            .map(IherbProductDto.CanonicalPath::getDisplayName)              // displayName만 추출
-                            .filter(Objects::nonNull)                        // null 값 필터
-                            .collect(Collectors.toList());
-
-            dto.setCategoryNames(categoryNames);
-
-            // 16. marginRate
-            dto.setMarginRate(BASE_MARGIN_RATE); // 최초 마진율 설정
-
-            // 16. 생성된 DTO를 결과 리스트에 추가
-            productRegistrationDtos.add(dto);
+            dtos.add(request);
         }
 
-        // 완성된 오픈마켓 등록 상품 DTO 리스트 반환 (화면 렌더/유저 수정/최종 등록 모두 사용)
-        return productRegistrationDtos;
+        return dtos;
     }
+
+    // ----------- 보조 메서드 --------------
+
+    private void parseUnitAndValue(String packageQuantity, String korName, ProductRegistrationRequest request) {
+        if (packageQuantity != null) {
+            Pattern pat = Pattern.compile("^([\\d]+)(?:\\.\\d+)?\\s*([a-zA-Z가-힣]+)?$");
+            Matcher m = pat.matcher(packageQuantity.trim());
+            if (m.find()) {
+                request.getProductDto().setUnitValue(Integer.parseInt(m.group(1)));
+                request.getProductDto().setUnit(Optional.ofNullable(m.group(2)).orElse(""));
+            }
+            // korName에서 단위 재확인
+            if (korName != null && request.getProductDto().getUnitValue() > 0) {
+                Pattern unitPat = Pattern.compile(request.getProductDto().getUnitValue() + "(정|캡슐|포|알|타블릿)");
+                Matcher unitM = unitPat.matcher(korName);
+                if (unitM.find()) {
+                    request.getProductDto().setUnit(unitM.group(1));
+                }
+            }
+        } else {
+            request.getProductDto().setUnit("");
+            request.getProductDto().setUnitValue(0);
+        }
+    }
+
+    private void setPackQtyAndSalePrice(Double price, ProductRegistrationRequest request) {
+        int baseQty = 1;
+        int sale = 0;
+        double margin = (1 + (BASE_MARGIN_RATE / 100.0));
+        for (int q = 1; q <= 1000; q++) {
+            double result = Math.round(price * q * margin / 100.0) * 100;
+            if (result >= 40000) {
+                baseQty = q;
+                sale = (int) result;
+                break;
+            }
+        }
+        request.getProductDto().setPackQty(baseQty);
+        request.getProductDto().setSalePrice(sale);
+    }
+
+    private String parseProductType(String path) {
+        if (path != null && path.length() >= 4) {
+            String firstPath = path.substring(0, 4);
+            if ("0001".equals(firstPath) || "0002".equals(firstPath)) return "HEALTH";
+            if ("0003".equals(firstPath)) return "FOOD";
+        }
+        return null;
+    }
+
 
     // 전체 현황
     public List<ProcessStatusDto> findAllStatuses() {
         // 모든 ProcessStatus 엔티티를 조회해서 DTO로 변환
-        return processStatusRepository.findAll().stream()
+        return psr.findAll().stream()
                 .map(ProcessStatusDto::fromEntity)
                 .collect(Collectors.toList());
     }
 
+
+    public void registerProducts(
+            List<ProductRegistrationRequest> requests) {
+
+        String batchId = UUID.randomUUID().toString();
+
+        // 이미지 로컬에 다운로드
+        for (ProductRegistrationRequest request : requests) {
+            // 이미지 로컬에 다운로드
+            List<String> localPaths = ImageDownloader.downloadImagesToLocal(
+                    request.getProductDto().getCode(), request.getImageLinks());
+            request.setImageFiles(localPaths);
+        }
+
+        // 이미지 업로드
+        uploadImages(requests);
+
+        // 메시지 발행
+        for (ProductRegistrationRequest productRegistrationRequest : requests) {
+            messageQueueService.publishRegisterEachProduct(productRegistrationRequest, batchId);
+        }
+        String batchInitMsg = String.format("%d개 배치 시작", requests.size());
+        pss.upsertProcessStatus(batchId, null, null,
+                "UPDATE_PRODUCTS", "PENDING", batchInitMsg);
+
+    }
+
+    public void uploadImages(List<ProductRegistrationRequest> requests
+    ) {
+
+        // 업로드 요청용 맵 리스트 생성
+        List<Map<String, Object>> imageUploadRequests = requests.stream()
+                .map(request ->
+                        Map.of("code", request.getProductDto().getCode(), "imageFiles", request.getImageFiles()))
+                .collect(Collectors.toList());
+
+        // 이미지 업로드 시도
+        try {
+            // 이미지 업로드 API 호출
+            List<ProductImageUploadResult> results = uploadImagesApi.batchUploadImages(imageUploadRequests);
+
+            // 결과 매핑
+            Map<String, List<String>> codeToLinks = new HashMap<>();
+            for (ProductImageUploadResult result : results) {
+                codeToLinks.put(result.getCode(), result.getUploadedImageLinks());
+            }
+            for (ProductRegistrationRequest request : requests) {
+                // 업로드된 링크가 있으면 세팅, 없으면 실패 처리
+                List<String> links = codeToLinks.get(request.getProductDto().getCode());
+                if (links != null && !links.isEmpty()) {
+                    // 업로드된 링크 세팅
+                    request.setUploadedImageLinks(links);
+                }
+            }
+        } catch (Exception e) {
+        }
+    }
 
 }

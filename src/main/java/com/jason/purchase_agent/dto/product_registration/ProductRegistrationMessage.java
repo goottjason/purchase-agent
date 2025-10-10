@@ -14,8 +14,5 @@ import java.util.List;
 @AllArgsConstructor
 public class ProductRegistrationMessage {
     private String batchId; // 배치 추적용 (일괄 작업 그룹 생성자)
-    private String requestedBy;
-    private LocalDateTime requestedAt;
-    private List<ProductRegistrationDto> products;
-    private ProductRegistrationDto product;
+    private ProductRegistrationRequest request;
 }

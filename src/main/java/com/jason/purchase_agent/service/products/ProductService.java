@@ -696,6 +696,7 @@ public class ProductService {
         String batchId = UUID.randomUUID().toString();
 
         for (ProductUpdateRequest request : requests) {
+            try { Thread.sleep(3000); } catch (InterruptedException ignored) {}
             // 각 상품에 대해 메세지 발행
             messageQueueService.publishCrawlAndUpdateEachProductBySupplier(
                     marginRate, couponRate, minMarginPrice, request, batchId);
