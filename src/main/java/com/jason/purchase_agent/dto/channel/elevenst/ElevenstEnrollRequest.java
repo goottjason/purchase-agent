@@ -6,6 +6,7 @@ import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlProperty;
 import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlRootElement;
 
 import com.jason.purchase_agent.dto.product_registration.ProductRegistrationRequest;
+import com.jason.purchase_agent.dto.products.ProductDto;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -588,8 +589,9 @@ public class ElevenstEnrollRequest {
         }
     }
 
-    public static ElevenstEnrollRequest fromForm(ProductRegistrationRequest form) {
-        List<String> images = form.getUploadedImageLinks();
+    public static ElevenstEnrollRequest fromForm(ProductRegistrationRequest request) {
+        ProductDto productDto = request.getProductDto();
+        List<String> images = request.getUploadedImageLinks();
         String prdImage01 = images.size() > 0 ? images.get(0) : null;
         String prdImage02 = images.size() > 1 ? images.get(1) : null;
         String prdImage03 = images.size() > 2 ? images.get(2) : null;
@@ -597,25 +599,25 @@ public class ElevenstEnrollRequest {
 
         // 상품 고시 정보 분기
         ElevenstEnrollRequest.ProductNotification notification = null;
-        if ("FOOD".equals(form.getProductType())) {
+        if ("FOOD".equals(productDto.getProductType())) {
             notification = ElevenstEnrollRequest.createFoodNotification();
-        } else if ("HEALTH".equals(form.getProductType())) {
+        } else if ("HEALTH".equals(productDto.getProductType())) {
             notification = ElevenstEnrollRequest.createHealthNotification();
         }
 
         return ElevenstEnrollRequest.builder()
                 // ● 표시된 필드만 직접 세팅
-                .dispCtgrNo(String.valueOf(form.getElevenstCategoryId()))
-                .prdNm(form.getTitle())
-                .prdNmEng(form.getEngName())
-                .brand(form.getBrandName())
-                .sellerPrdCd(form.getCode())
+                .dispCtgrNo(String.valueOf(request.getElevenstCategoryId()))
+                .prdNm(productDto.getTitle())
+                .prdNmEng(productDto.getEngName())
+                .brand(productDto.getBrandName())
+                .sellerPrdCd(productDto.getCode())
                 .prdImage01(prdImage01)
                 .prdImage02(prdImage02)
                 .prdImage03(prdImage03)
                 .prdImage04(prdImage04)
-                .htmlDetail(form.getDetailsHtml())
-                .selPrc(String.valueOf(form.getSalePrice()))
+                .htmlDetail(productDto.getDetailsHtml())
+                .selPrc(String.valueOf(productDto.getSalePrice()))
                 .productNotification(notification)
                 // 나머지 필드는 필요시 기본값 그대로
                 .build();

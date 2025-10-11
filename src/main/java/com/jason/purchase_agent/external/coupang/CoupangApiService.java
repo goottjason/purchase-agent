@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jason.purchase_agent.dto.channel.coupang.CoupangCategoryMetaInfoDto;
 import com.jason.purchase_agent.dto.channel.coupang.CoupangProductRequest;
 import com.jason.purchase_agent.dto.product_registration.ProductRegistrationRequest;
+import com.jason.purchase_agent.dto.products.ProductDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -84,17 +85,18 @@ public class CoupangApiService {
         System.out.println("resStock = " + resStock);
     }
 
-    public String enrollProducts(ProductRegistrationRequest product) {
+    public String enrollProducts(ProductRegistrationRequest request) {
         // 쿠팡 상품등록 API 호출 로직 구현
+        ProductDto productDto = request.getProductDto();
 
         // 1. CoupangProductRequest의 팩토리메서드로 DTO 생성
         CoupangProductRequest.CoupangProductRequestBuilder coupangProductRequest
-                = CoupangProductRequest.from(product).toBuilder();
+                = CoupangProductRequest.from(productDto).toBuilder();
 
         // 2. product의 정보를 토대로 카테고리추천 API 호출, requestBuilder의 displayCategoryCode에 세팅
         String categoryId = null;
         try {
-            categoryId = recommendDisplayCategory(product);
+            categoryId = recommendDisplayCategory(productDto);
         } catch (JsonProcessingException e) {
             // 예외처리: 기본 카테고리 세팅 또는 에러 반환
             e.printStackTrace();
@@ -113,33 +115,33 @@ public class CoupangApiService {
 
         // 4. Notice (고시정보) 세팅
         List<CoupangProductRequest.Notice> notices;
-        if ("HEALTH".equalsIgnoreCase(product.getProductType())) {
+        if ("HEALTH".equalsIgnoreCase(productDto.getProductType())) {
             notices = CoupangProductRequest.HEALTH_FUNCTIONAL_NOTICES;
         } else {
             notices = CoupangProductRequest.PROCESSED_FOOD_NOTICES;
         }
 
         // 5. Attributes (옵션/속성) 세팅
-        List<CoupangProductRequest.Attribute> attributes = buildRequiredAttributes(metaInfo, product);
+        List<CoupangProductRequest.Attribute> attributes = buildRequiredAttributes(metaInfo, productDto);
 
         // 6. 이미지 세팅
-        List<CoupangProductRequest.Image> images = buildImageList(product.getUploadedImageLinks());
+        List<CoupangProductRequest.Image> images = buildImageList(request.getUploadedImageLinks());
 
         // 7. 상세페이지(contents) 생성 (이미지와 간단한 상품 요약 설명)
-        List<CoupangProductRequest.Content> contents = buildProductContents(product);
+        List<CoupangProductRequest.Content> contents = buildProductContents(request);
 
         // 8. 아이템이름 세팅
-        String itemName = buildItemName(product);
+        String itemName = buildItemName(productDto);
 
         // List<CoupangProductRequest.Certification> certifications = buildCertifications(product);
 
         // 9. Item(옵션) 객체 완성
         CoupangProductRequest.Item item = CoupangProductRequest.Item.builder()
                 .itemName(itemName)
-                .originalPrice((int) (Math.round(product.getSalePrice() * (1 + product.getMarginRate()/100.0) / 100.0) * 100))
-                .salePrice(product.getSalePrice())
-                .unitCount(product.getPackQty() > 0 ? product.getPackQty() : 1)
-                .externalVendorSku(product.getCode())
+                .originalPrice((int) (Math.round(productDto.getSalePrice() * (1 + productDto.getMarginRate()/100.0) / 100.0) * 100))
+                .salePrice(productDto.getSalePrice())
+                .unitCount(productDto.getPackQty() > 0 ? productDto.getPackQty() : 1)
+                .externalVendorSku(productDto.getCode())
                 .images(images)
                 .notices(notices)
                 .attributes(attributes)
@@ -148,7 +150,7 @@ public class CoupangApiService {
                 .build();
 
         // 10. Request DTO 최종 빌드
-        CoupangProductRequest request = coupangProductRequest.items(List.of(item)).build();
+        CoupangProductRequest coupangProductRequest1 = coupangProductRequest.items(List.of(item)).build();
 
         // 11. 최종 API 호출
         String path = "/v2/providers/seller_api/apis/api/v1/marketplace/seller-products";
@@ -157,12 +159,12 @@ public class CoupangApiService {
 
         // request를 Map 변환 (Jackson 사용)
         ObjectMapper mapper = new ObjectMapper();
-        Map<String, Object> body = mapper.convertValue(request, Map.class);
+        Map<String, Object> body = mapper.convertValue(coupangProductRequest1, Map.class);
 
         return executeRequest(method, path, params, body);
     }
 
-    public String recommendDisplayCategory(ProductRegistrationRequest product) throws JsonProcessingException {
+    public String recommendDisplayCategory(ProductDto product) throws JsonProcessingException {
         String path = "/v2/providers/openapi/apis/api/v1/categorization/predict";
         Map<String, Object> body = new HashMap<>();
         body.put("productName", product.getKorName());
@@ -190,7 +192,7 @@ public class CoupangApiService {
     }
 
 
-    private String buildItemName(ProductRegistrationRequest product) {
+    private String buildItemName(ProductDto product) {
         StringBuilder sb = new StringBuilder();
 
         // 단위/수량이 명확한 경우 (ex: 453ml_3개)
@@ -204,16 +206,16 @@ public class CoupangApiService {
     }
 
     private List<CoupangProductRequest.Content> buildProductContents(
-            ProductRegistrationRequest product
+            ProductRegistrationRequest request
     ) {
-
+        ProductDto product = request.getProductDto();
         // --- 1. HTML 조립용 파라미터 추출
         String korName = safe(product.getBrandName()) + " " + safe(product.getKorName());
         String engName = safe(product.getEngName());
         int packQty = product.getPackQty();
         int unitValue = product.getUnitValue();
         String unit = product.getUnit();
-        List<String> imgLinks = product.getUploadedImageLinks();
+        List<String> imgLinks = request.getUploadedImageLinks();
 
         String imgTagBlock = imgLinks == null ? "" :
                 imgLinks.stream()
@@ -280,7 +282,7 @@ public class CoupangApiService {
 
 
     private List<CoupangProductRequest.Attribute> buildRequiredAttributes(
-            CoupangCategoryMetaInfoDto metaInfo, ProductRegistrationRequest product
+            CoupangCategoryMetaInfoDto metaInfo, ProductDto product
     ) {
         List<CoupangProductRequest.Attribute> attributes = new ArrayList<>();
         if (metaInfo == null || metaInfo.getAttributes() == null) return attributes;
@@ -323,7 +325,7 @@ public class CoupangApiService {
         return attributes;
     }
 
-    private List<CoupangProductRequest.Certification> buildCertifications(ProductRegistrationRequest product) {
+    private List<CoupangProductRequest.Certification> buildCertifications(ProductDto product) {
         // 실제 파일명/번호는 DB, 관리자 세팅값, 폼 데이터 등에서 가져올 것
         String certificationCode;
         String vendorPath;

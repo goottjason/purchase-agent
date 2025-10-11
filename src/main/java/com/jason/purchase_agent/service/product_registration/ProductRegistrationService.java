@@ -4,6 +4,7 @@ import com.jason.purchase_agent.dto.categories.CategoryTreeDto;
 import com.jason.purchase_agent.dto.process_status.ProcessStatusDto;
 import com.jason.purchase_agent.dto.product_registration.ProductImageUploadResult;
 import com.jason.purchase_agent.dto.product_registration.ProductRegistrationRequest;
+import com.jason.purchase_agent.dto.products.ProductDto;
 import com.jason.purchase_agent.external.iherb.IherbCategoryCrawler;
 import com.jason.purchase_agent.external.iherb.IherbProductCrawler;
 import com.google.gson.Gson;
@@ -17,6 +18,7 @@ import com.jason.purchase_agent.util.downloader.ImageDownloader;
 import com.jason.purchase_agent.util.uploader.UploadImagesApi;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -26,7 +28,10 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import static com.jason.purchase_agent.external.iherb.IherbProductCrawler.crawlProductAsJson;
 import static com.jason.purchase_agent.util.JsonUtils.safeJsonString;
+import static com.jason.purchase_agent.util.converter.StringListConverter.objectMapper;
+import static com.jason.purchase_agent.util.exception.ExceptionUtils.uncheck;
 
 @Slf4j
 @Service
@@ -101,7 +106,8 @@ public class ProductRegistrationService {
     public List<ProductRegistrationRequest> convertToProductRegistrationDto(
             List<IherbProductDto> selectedIherbProductDtos
     ) {
-        List<ProductRegistrationRequest> dtos = new ArrayList<>();
+        List<ProductRegistrationRequest> requests = new ArrayList<>();
+
         String today = LocalDate.now().format(DateTimeFormatter.ofPattern("yyMMdd"));
         String codePrefix = today + "IHB";
 
@@ -109,32 +115,39 @@ public class ProductRegistrationService {
 
         for (IherbProductDto iherbDto : selectedIherbProductDtos) {
             ProductRegistrationRequest request = new ProductRegistrationRequest();
+            ProductDto productDto = new ProductDto();
+            request.setProductDto(productDto);
             // 1. 상품 코드
-            request.getProductDto().setCode("%sIHB%03d".formatted(today, seq++));
+            productDto.setCode("%sIHB%03d".formatted(today, seq++));
+            productDto.setSupplierCode("IHB");
+            productDto.setWeight(parseWeight(iherbDto.getActualWeight()));
+            productDto.setShippingCost(0.0);
             // 2. 원본 링크
-            request.getProductDto().setLink(iherbDto.getUrl());
+            productDto.setLink(iherbDto.getUrl());
             // 3. 패키지 단위 자동 파싱
-            parseUnitAndValue(iherbDto.getPackageQuantity(), iherbDto.getDisplayName(), request);
+            parseUnitAndValue(iherbDto.getPackageQuantity(), iherbDto.getDisplayName(), productDto);
             // 4. 실구매가
-            request.getProductDto().setBuyPrice(iherbDto.getDiscountPriceAmount());
+            productDto.setBuyPrice(iherbDto.getDiscountPriceAmount());
             // 5. 가격 산정 및 패킹수량
-            setPackQtyAndSalePrice(iherbDto.getDiscountPriceAmount(), request);
+            setPackQtyAndSalePrice(iherbDto.getDiscountPriceAmount(), productDto);
             // 6. 브랜드명(한글만)
             String brandName = iherbDto.getBrandName();
-            request.getProductDto().setBrandName((brandName != null && brandName.matches(".*\\(.*\\).*"))
+            productDto.setBrandName((brandName != null && brandName.matches(".*\\(.*\\).*"))
                     ? brandName.replaceAll(".*\\(([^)]*)\\).*", "$1").trim()
                     : brandName);
             // 7~9. 각종 이름, 타이틀, 재고
-            request.getProductDto().setEngName(iherbDto.getDisplayEngName());
-            request.getProductDto().setKorName(iherbDto.getDisplayName());
-            request.getProductDto().setTitle(iherbDto.getDisplayName());
-            request.getProductDto().setStock(Boolean.TRUE.equals(iherbDto.getIsAvailableToPurchase()) ? 500 : 0);
+            productDto.setEngName(iherbDto.getDisplayEngName());
+            productDto.setKorName(iherbDto.getDisplayName());
+            productDto.setTitle(iherbDto.getDisplayName());
+            productDto.setStock(Boolean.TRUE.equals(iherbDto.getIsAvailableToPurchase()) ? 500 : 0);
             // 10~13. 기타 상세 정보
-            request.getProductDto().setDetailsHtml(null);
+            productDto.setDetailsHtml(null);
+            String imageLinksJson = uncheck(() -> objectMapper.writeValueAsString(iherbDto.getImageLinks()));
+            productDto.setImageLinks(imageLinksJson);
             request.setImageLinks(iherbDto.getImageLinks());
             request.setUploadedImageLinks(null);
             // 14. 상품 타입(카테고리 기반 분류)
-            request.setProductType(parseProductType(iherbDto.getUserCategoryPath()));
+            productDto.setProductType(parseProductType(iherbDto.getUserCategoryPath()));
             // 15. 카테고리명 리스트(Fast flatMap)
             request.setCategoryNames(Optional.ofNullable(iherbDto.getCanonicalPaths())
                     .map(paths -> paths.stream()
@@ -145,39 +158,55 @@ public class ProductRegistrationService {
                     .orElseGet(Collections::emptyList));
 
             // 16. 마진율
-            request.getProductDto().setMarginRate(BASE_MARGIN_RATE);
+            productDto.setMarginRate(BASE_MARGIN_RATE);
 
-            dtos.add(request);
+            requests.add(request);
         }
 
-        return dtos;
+        return requests;
     }
 
-    // ----------- 보조 메서드 --------------
 
-    private void parseUnitAndValue(String packageQuantity, String korName, ProductRegistrationRequest request) {
+    // ----------- 보조 메서드 --------------
+    private Double parseWeight(String actualWeight) {
+        if (actualWeight == null || actualWeight.trim().isEmpty()) {
+            return null;
+        }
+        try {
+            // 숫자와 소수점만 남기고 모두 제거
+            String numericWeight = actualWeight.replaceAll("[^0-9.]", "");
+            return numericWeight.isEmpty() ? null : Double.parseDouble(numericWeight);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private void parseUnitAndValue(String packageQuantity, String korName, ProductDto productDto) {
+        // 기본값 초기화 (필수)
+        productDto.setUnit("");
+        productDto.setUnitValue(0);
         if (packageQuantity != null) {
             Pattern pat = Pattern.compile("^([\\d]+)(?:\\.\\d+)?\\s*([a-zA-Z가-힣]+)?$");
             Matcher m = pat.matcher(packageQuantity.trim());
             if (m.find()) {
-                request.getProductDto().setUnitValue(Integer.parseInt(m.group(1)));
-                request.getProductDto().setUnit(Optional.ofNullable(m.group(2)).orElse(""));
+                productDto.setUnitValue(Integer.parseInt(m.group(1)));
+                productDto.setUnit(Optional.ofNullable(m.group(2)).orElse(""));
             }
             // korName에서 단위 재확인
-            if (korName != null && request.getProductDto().getUnitValue() > 0) {
-                Pattern unitPat = Pattern.compile(request.getProductDto().getUnitValue() + "(정|캡슐|포|알|타블릿)");
+            if (korName != null && productDto.getUnitValue() > 0) {
+                Pattern unitPat = Pattern.compile(productDto.getUnitValue() + "(정|캡슐|포|알|타블릿)");
                 Matcher unitM = unitPat.matcher(korName);
                 if (unitM.find()) {
-                    request.getProductDto().setUnit(unitM.group(1));
+                    productDto.setUnit(unitM.group(1));
                 }
             }
         } else {
-            request.getProductDto().setUnit("");
-            request.getProductDto().setUnitValue(0);
+            productDto.setUnit("");
+            productDto.setUnitValue(0);
         }
     }
 
-    private void setPackQtyAndSalePrice(Double price, ProductRegistrationRequest request) {
+    private void setPackQtyAndSalePrice(Double price, ProductDto productDto) {
         int baseQty = 1;
         int sale = 0;
         double margin = (1 + (BASE_MARGIN_RATE / 100.0));
@@ -189,8 +218,8 @@ public class ProductRegistrationService {
                 break;
             }
         }
-        request.getProductDto().setPackQty(baseQty);
-        request.getProductDto().setSalePrice(sale);
+        productDto.setPackQty(baseQty);
+        productDto.setSalePrice(sale);
     }
 
     private String parseProductType(String path) {
@@ -211,10 +240,10 @@ public class ProductRegistrationService {
                 .collect(Collectors.toList());
     }
 
-
+    @Async
     public void registerProducts(
-            List<ProductRegistrationRequest> requests) {
-
+            List<ProductRegistrationRequest> requests
+    ) {
         String batchId = UUID.randomUUID().toString();
 
         // 이미지 로컬에 다운로드
@@ -228,9 +257,9 @@ public class ProductRegistrationService {
         // 이미지 업로드
         uploadImages(requests);
 
-        // 메시지 발행
-        for (ProductRegistrationRequest productRegistrationRequest : requests) {
-            messageQueueService.publishRegisterEachProduct(productRegistrationRequest, batchId);
+        // 메세지 발행
+        for (ProductRegistrationRequest request : requests) {
+            messageQueueService.publishRegisterEachProduct(request, batchId);
         }
         String batchInitMsg = String.format("%d개 배치 시작", requests.size());
         pss.upsertProcessStatus(batchId, null, null,
@@ -259,10 +288,10 @@ public class ProductRegistrationService {
             }
             for (ProductRegistrationRequest request : requests) {
                 // 업로드된 링크가 있으면 세팅, 없으면 실패 처리
-                List<String> links = codeToLinks.get(request.getProductDto().getCode());
-                if (links != null && !links.isEmpty()) {
+                List<String> uploadedImageLinks = codeToLinks.get(request.getProductDto().getCode());
+                if (uploadedImageLinks != null && !uploadedImageLinks.isEmpty()) {
                     // 업로드된 링크 세팅
-                    request.setUploadedImageLinks(links);
+                    request.setUploadedImageLinks(uploadedImageLinks);
                 }
             }
         } catch (Exception e) {

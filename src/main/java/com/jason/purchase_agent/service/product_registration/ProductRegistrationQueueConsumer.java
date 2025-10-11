@@ -50,7 +50,7 @@ public class ProductRegistrationQueueConsumer {
     @RabbitListener(queues = "product_registration_queue")
     public void receive(ProductRegistrationMessage message) {
 
-        log.info("■ [배치 시작] BatchId={} 상품등록 배치 시작", message.getBatchId());
+        /*log.info("■ [배치 시작] BatchId={} 상품등록 배치 시작", message.getBatchId());
 
         String batchId = message.getBatchId();
         List<ProductRegistrationRequest> products = message.getProducts();
@@ -60,11 +60,11 @@ public class ProductRegistrationQueueConsumer {
         psr.updateBatchStatus(batchId, null,
                 "BATCH_PROGRESS", "IN_PROGRESS", "상품등록 배치 진행중");
 
-        /**
+        *//**
          * 1단계: 상품DB 저장 + 2단계: 이미지 로컬 다운로드 (각 상품 단위 처리)
          *  - 각 상품별로 1,2단계 처리
          *  - 1,2단계 모두 성공한 상품만 3단계 업로드 대상 리스트에 추가
-         */
+         *//*
         List<ProductRegistrationRequest> readyForImageUpload = new ArrayList<>();
         for (ProductRegistrationRequest productDto : products) {
             // 유저가 생성한 각 상품의 등록정보를 JSON 형태로 details에 저장
@@ -99,12 +99,12 @@ public class ProductRegistrationQueueConsumer {
 
         psr.updateBatchStatus(batchId, null,
                 "BATCH_FINISH", "SUCCESS", "상품등록 배치 전체 처리 완료");
-        log.info("■ [배치 완료] BatchId={} 상품등록 배치 처리 완료", batchId);
+        log.info("■ [배치 완료] BatchId={} 상품등록 배치 처리 완료", batchId);*/
     }
 
     @RabbitListener(queues = "product_registration_retry_queue")
     public void receiveRetry(ProductRegistrationRetryMessage message) {
-        String batchId = message.getBatchId();
+        /*String batchId = message.getBatchId();
         LocalDateTime now = LocalDateTime.now();
         String startStep = message.getStartStep();
 
@@ -134,7 +134,7 @@ public class ProductRegistrationQueueConsumer {
                 break;
             default:
                 throw new IllegalArgumentException("Unknown step: " + startStep);
-        }
+        }*/
     }
 }
 

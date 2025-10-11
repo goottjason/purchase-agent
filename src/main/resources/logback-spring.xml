@@ -7,7 +7,7 @@
             <pattern>${CONSOLE_LOG_PATTERN}</pattern>
         </encoder>
     </appender>
-    <logger name="com.jason.purchase_agent" level="DEBUG" additivity="false">
+    <logger name="com.jason.purchase_agent" level="INFO" additivity="false">
         <appender-ref ref="STDOUT"/>
     </logger>
     <root level="INFO">

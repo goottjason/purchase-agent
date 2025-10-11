@@ -89,5 +89,9 @@ public class RabbitMQConfig {
     public Queue crawlAndUpdateEachProductBySupplierQueue() {
         return new Queue("crawl-and-update-each-product-by-supplier", true);
     }
+    @Bean
+    public Queue registerEachProductQueue() {
+        return new Queue("register-each-product", true);
+    }
 
 }

@@ -1,6 +1,7 @@
 package com.jason.purchase_agent.dto.channel.smartstore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.jason.purchase_agent.dto.product_registration.ProductRegistrationRequest;
+import com.jason.purchase_agent.dto.products.ProductDto;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -604,9 +605,9 @@ public class SmartstoreEnrollRequest {
     // ---------------------------
     // == 빌더형 팩토리 메서드 ==
     // ---------------------------
-    public static SmartstoreEnrollRequest from(ProductRegistrationRequest dto) {
-
-        List<String> imageLinks = dto.getSmartstoreImageLinks();
+    public static SmartstoreEnrollRequest from(ProductRegistrationRequest request) {
+        ProductDto dto = request.getProductDto();
+        List<String> imageLinks = request.getSmartstoreImageLinks();
         Images images = Images.builder()
                 .representativeImage(
                         Image.builder().url(imageLinks.getFirst()).build()
@@ -666,7 +667,7 @@ public class SmartstoreEnrollRequest {
                 .trim();
         OriginProduct originProduct =
                 OriginProduct.builder()
-                        .leafCategoryId(String.valueOf(dto.getSmartstoreCategoryId()))
+                        .leafCategoryId(String.valueOf(request.getSmartstoreCategoryId()))
                         .name(dto.getTitle())
                         .detailContent(detailsHtml)
                         .images(images)
@@ -676,11 +677,11 @@ public class SmartstoreEnrollRequest {
                         .detailAttribute(detailAttribute)
                         .build();
 
-        SmartstoreEnrollRequest request = SmartstoreEnrollRequest.builder()
+        SmartstoreEnrollRequest smartstoreEnrollRequest = SmartstoreEnrollRequest.builder()
                 .originProduct(originProduct)
                 .build();
 
-        return request;
+        return smartstoreEnrollRequest;
     }
 }
 

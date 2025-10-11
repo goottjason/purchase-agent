@@ -30,9 +30,8 @@ public class MessageQueueService {
             ProductRegistrationRequest request, String batchId
     ) {
         ProductRegistrationMessage msg = ProductRegistrationMessage.builder()
-                .batchId(batchId)
-                .request(request)
-                .build();
+                .batchId(batchId).request(request).build();
+        rabbitTemplate.convertAndSend("register-each-product", msg);
     }
 
     public void publishCrawlAndUpdateEachProductBySupplier(

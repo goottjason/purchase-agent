@@ -1,6 +1,8 @@
 package com.jason.purchase_agent.service.autoupdate;
 
 import com.jason.purchase_agent.dto.autoupdate.AutoUpdateMessage;
+import com.jason.purchase_agent.dto.product_registration.ProductRegistrationMessage;
+import com.jason.purchase_agent.dto.product_registration.ProductRegistrationRequest;
 import com.jason.purchase_agent.dto.products.CrawlAndUpdateEachProductBySupplierMessage;
 import com.jason.purchase_agent.dto.products.ProductDto;
 import com.jason.purchase_agent.external.iherb.dto.IherbProductDto;
@@ -40,6 +42,16 @@ public class AutoUpdateQueueConsumer {
     private final ElevenstApiService elevenstApiService;
     private final IherbProductCrawler iherbProductCrawler;
 
+    // 한 개의 상품에 대한 등록 로직
+    @RabbitListener(queues = "register-each-product", concurrency = "1")
+    public void handleRegisterEachProduct(
+            ProductRegistrationMessage msg
+    ) {
+        String batchId = msg.getBatchId();
+        ProductRegistrationRequest request = msg.getRequest();
+
+
+    }
 
     // 한 개의 상품에 대한 로직
     @RabbitListener(queues = "crawl-and-update-each-product-by-supplier", concurrency = "1")

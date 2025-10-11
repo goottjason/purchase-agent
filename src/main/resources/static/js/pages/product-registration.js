@@ -81,7 +81,7 @@ function loadCategoryTree() {
     data: { keyword: $('#search-input').val().trim() },
     success: function(res) {
       // List<CategoryTreeDto> 반환
-      console.log(res);
+      console.log("List<CategoryTreeDto>", res);
       renderTreeTable(res || []);
     },
     error: function(){ alert('목록 로드 실패'); },
@@ -169,6 +169,8 @@ $(function () {
         $('#product-table-area').removeClass('hidden');
         const tbody = $('#product-table-body').empty();
 
+        console.log("iherbProductDtos", iherbProductDtos)
+
         iherbProductDtos.forEach(p => {
           tbody.append(`
             <tr>
@@ -228,16 +230,17 @@ $(function () {
       type: 'POST',
       contentType: 'application/json',
       data: JSON.stringify(selectedIds),
-      success: function (productRegistrationDtos) {
+      success: function (productRegistrationRequests) {
+        console.log("productRegistrationRequests", productRegistrationRequests);
         // 1. 상품 정보 전역 저장(전역 네임스페이스 또는 모듈 스코프 활용) 최종상품등록할 때 필요
-        window.productRegistrationDtos = (productRegistrationDtos || []);
-        renderStep3ProductTable(productRegistrationDtos || []);
+        window.productRegistrationRequests = (productRegistrationRequests || []);
+        renderStep3ProductTable(productRegistrationRequests || []);
       }
     });
   });
 
   // [3-2] 3단계 테이블 렌더링 함수
-  function renderStep3ProductTable(productRegistrationDtos) {
+  function renderStep3ProductTable(productRegistrationRequests) {
     // 분리된 카테고리 SelectBox 옵션(실제 옵션 정의 생략, 기존 코드 참고)
     const smartstoreCategories = [
       { value: "0", text: "--- 반드시 선택 ---"},
@@ -274,7 +277,8 @@ $(function () {
 
     let tbody = $('#step3-table').empty();
 
-    productRegistrationDtos.forEach(p => {
+    productRegistrationRequests.forEach(request => {
+      let p = request.productDto;
       let korName = p.korName;
       let idx = korName.lastIndexOf(',');
       let korNameNoUnit = idx > -1 ? korName.substring(0, idx).trim() : korName.trim();
@@ -432,9 +436,7 @@ $(function () {
   // [4-1] 상품 최종 등록(4단계)
   $('#submit-final').on('click', function () {
 
-    let productRegistrationDtos = [];
-
-    const marginRate = parseFloat($('#global-margin-rate').val());
+    let productRegistrationRequests = [];
 
     $('#step3-table tr').each(function () {
 
@@ -445,37 +447,39 @@ $(function () {
         // 코드정보 불러오기
         let code = $cb.data('code');
 
-        // 해당 코드 정보를 window.productRegistrationDtos에서 찾기
-        let origin = (window.productRegistrationDtos || []).find(p => p.code === code);
+        // 해당 코드 정보를 window.productRegistrationRequests에서 찾기
+        let origin = (window.productRegistrationRequests || []).find(request => request.productDto.code === code);
         if (!origin) return; // 혹시 없는 경우 skip
 
         // 기존 정보(origin)를 불러온 후, 유저의 최종 수정정보를 반영하여 productRegistrationDtos에 담기
-        productRegistrationDtos.push({
+        productRegistrationRequests.push({
           ...origin,
-          title: $(this).find('.etc-title').text(),
-          korName: $(this).find('.kor-name-input').val(),
-          engName: $(this).find('.eng-name-input').val(),
-          brandName: $(this).find('.brand-name-input').val(),
-          unitValue: $(this).find('.unit-value-input').val(),
-          unit: $(this).find('.unit-input').val(),
-          buyPrice: $(this).find('.buy-price-input').val(),
-          packQty: $(this).find('.pack-qty-input').val(),
-          salePrice: $(this).find('.sale-price-input').val(),
-          smartstoreCategoryId : $(this).find('.smartstore-category-select').val(),
-          elevenstCategoryId : $(this).find('.elevenst-category-select').val(),
-          marginRate: marginRate
+          productDto: {
+            ...origin.productDto,
+            title: $(this).find('.etc-title').text(),
+            korName: $(this).find('.kor-name-input').val(),
+            engName: $(this).find('.eng-name-input').val(),
+            brandName: $(this).find('.brand-name-input').val(),
+            unitValue: $(this).find('.unit-value-input').val(),
+            unit: $(this).find('.unit-input').val(),
+            buyPrice: $(this).find('.buy-price-input').val(),
+            packQty: $(this).find('.pack-qty-input').val(),
+            salePrice: $(this).find('.sale-price-input').val(),
+            marginRate: parseFloat($('#global-margin-rate').val()),
+            // origin에서 다른 필요한 ProductDto 필드들 복사
+          },
+          smartstoreCategoryId: $(this).find('.smartstore-category-select').val(),
+          elevenstCategoryId: $(this).find('.elevenst-category-select').val()
         });
       }
     });
-    if (!productRegistrationDtos.length) { alert('등록할 상품을 선택하세요'); return; }
+    if (!productRegistrationRequests.length) { alert('등록할 상품을 선택하세요'); return; }
 
     $.ajax({
-      // Input : List<EnrollProductFormDto> productRegistrationDtos (ex. [{code:xxx, link:xxx, ... }, {code:xxx, link:xxx, ... }])
-      // Output : Map<String, String> map (ex. {status: ok, requestId: xxx})
       url: '/product-registration/step4-submit-products',
       type: 'POST',
       contentType: 'application/json',
-      data: JSON.stringify(productRegistrationDtos),
+      data: JSON.stringify(productRegistrationRequests),
       success: function (map) {
         console.log(map);
         $('#doneModal').modal('show');

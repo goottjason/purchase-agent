@@ -17,6 +17,7 @@ import com.jason.purchase_agent.external.iherb.dto.IherbProductDto;
 import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 
@@ -36,20 +37,14 @@ public class ProductRegistrationController {
     private final ProcessStatusRepository psr;
     private final ObjectMapper objectMapper;
 
-    /**
-     * [STEP 1] 카테고리 목록 조회 (CategoryController 처리)
-     */
+    // [STEP 1] 카테고리 목록 조회 (CategoryController 처리)
     @GetMapping("/product-registration")
     public String productRegistrationPage() {
         // 프론트에서 loadCategoryTree() 호출 => GET("/categories/tree") 요청
         return "pages/product-registration";
     }
 
-    /**
-     * [STEP 2] 사용자가 카테고리/상품수 선택했을 때 상품 링크수집
-     * @param categoryTreeDtos - 카테고리/상품수 정보
-     * @param session    - 임시로 상품목록 보관
-     */
+    // [STEP 2] 사용자가 카테고리/상품수 선택했을 때 상품 링크수집
     @PostMapping("/product-registration/step2-fetch-products")
     @ResponseBody
     public List<IherbProductDto> fetchProducts(
@@ -101,7 +96,7 @@ public class ProductRegistrationController {
         List<ProductRegistrationRequest> productRegistrationRequests =
                 productRegistrationService.convertToProductRegistrationDto(selectedIherbProductDtos);
 
-        session.setAttribute("productRegistrationDtos", productRegistrationRequests);
+        session.setAttribute("productRegistrationRequests", productRegistrationRequests);
 
         return productRegistrationRequests;
     }
@@ -117,43 +112,22 @@ public class ProductRegistrationController {
      */
     @PostMapping("/product-registration/step4-submit-products")
     @ResponseBody
-    public Map<String, String> submit(
+    public ResponseEntity<?> registerProducts (
             @RequestBody List<ProductRegistrationRequest> productRegistrationRequests
     ) {
-
+        // batchId 생성 + 이미지 로컬에 다운로드 + 이미지 ESM에 업로드 + 메세지 발행
+        // 메세지 컨슈머에서, Product에 저장 및 각 채널에 상품등록 후 Mapping에 저장
         productRegistrationService.registerProducts(productRegistrationRequests);
 
-        /*// --- (1) 배치 ID 생성 + (2) DB에 배치 상태 등록 + (3) MQ에 메시지 발행 + (4) API 응답 ---
-
-        // --- (1) 배치 ID 생성 ---
-        String batchId = UUID.randomUUID().toString();
-        String requestedBy = "ADMIN";
-        LocalDateTime now = LocalDateTime.now();
-
-
-        // --- (2) DB에 배치 상태 등록 ---
-        psr.save(ProcessStatus.builder()
-                .batchId(batchId).productCode(null).startedAt(now).updatedAt(now)
-                .step("BATCH_START").status("INIT").message("상품등록 배치 로그등록").build());
-
-        // --- (3) MQ에 메시지 발행 (배치 1개) ---
-        ProductRegistrationMessage message = ProductRegistrationMessage.builder()
-                .batchId(batchId)
-                .products(productRegistrationRequests) // <-- 배치 전체를 한 메시지에
-                .build();
-        messageQueueService.publishProductRegistration(message);*/
-
-        // --- (4) API 응답 ---
-        return Map.of("status", "ok");
+        return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "상픔 등록 요청. 실제 반영 여부는 이력에서 확인."
+        ));
     }
 
 
-    // 1. 현황 테이블 데이터 조회 (목록 반환)
+    /* 1. 현황 테이블 데이터 조회 (목록 반환)
 
-    /**
-     * 등록현황 페이지에서 상품등록 관련 재시도 가능한 상태 목록 조회
-     * @return
-     */
     @GetMapping("/product-registration/status")
     @ResponseBody
     public List<ProcessStatusDto> getStatus() {
@@ -230,6 +204,5 @@ public class ProductRegistrationController {
         }
 
         return Map.of("status", "ok", "batchId", batchId);
-    }
-
+    }*/
 }

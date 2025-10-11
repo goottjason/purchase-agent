@@ -127,10 +127,10 @@ public class SmartstoreApiService {
     }
 
 
-    public String enrollProducts(ProductRegistrationRequest product) throws Exception {
+    public String enrollProducts(ProductRegistrationRequest request) throws Exception {
 
         // 1. 파일 경로 기준 이미지 검색 (예: product.code 포함된 파일 1~4장)
-        List<File> imageFiles = findProductImageFiles(product.getCode()); // 직접 로직 작성 필요
+        List<File> imageFiles = findProductImageFiles(request.getProductDto().getCode()); // 직접 로직 작성 필요
         System.out.println("imageFiles = " + imageFiles);
         
         // 2. 이미지 업로드 API 호출
@@ -145,10 +145,10 @@ public class SmartstoreApiService {
                 smartstoreImageLinks.add(url);
             }
         }
-        product.setSmartstoreImageLinks(smartstoreImageLinks);
+        request.setSmartstoreImageLinks(smartstoreImageLinks);
 
         // 2. 실제 DTO 객체 생성
-        SmartstoreEnrollRequest req = SmartstoreEnrollRequest.from(product);
+        SmartstoreEnrollRequest req = SmartstoreEnrollRequest.from(request);
 
         // 3. ObjectMapper 생성
         Map<String, Object> params = mapper.convertValue(req, Map.class);

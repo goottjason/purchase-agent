@@ -4,7 +4,7 @@
       xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout">
 
 <!-- config.html에 작성한 head 태그에 병합됨 -->
-<head th:replace="fragments/config :: configFragment">
+<head th:replace="~{fragments/config :: configFragment}">
   <title layout:title-pattern="$CONTENT_TITLE :: purchase-agent">purchase-agent</title>
   <!-- 각 페이지 헤더에 title 작성하면, '메뉴명 :: purchase-agent' 표시됨 -->
 </head>
@@ -14,18 +14,18 @@
 <!-- Page Wrapper -->
 <div id="wrapper">
   <!-- 좌측 사이드바 -->
-  <div th:replace="fragments/sidebar :: sidebarFragment"></div>
+  <div th:replace="~{fragments/sidebar :: sidebarFragment}"></div>
   <!-- Content Wrapper -->
   <div id="content-wrapper" class="d-flex flex-column">
     <!-- Main Content -->
     <div id="content">
       <!-- 상단 네비게이션 -->
-      <div th:replace="fragments/topbar :: topbarFragment"></div>
+      <div th:replace="~{fragments/topbar :: topbarFragment}"></div>
       <!-- 각 페이지의 고유 내용 -->
       <th:block layout:fragment="content"></th:block>
     </div>  <!-- End of Main Content -->
     <!-- 하단 푸터 -->
-    <div th:replace="fragments/footer :: footerFragment"></div>
+    <div th:replace="~{fragments/footer :: footerFragment}"></div>
   </div>  <!-- End of Content Wrapper -->
 </div>  <!-- End of Page Wrapper -->
 

@@ -14,15 +14,21 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class ProductRegistrationRequest {
+
     private ProductDto productDto;
-    private List<String> imageLinks; // 이미지링크 (아이허브 크롤링하면서 세팅)
-    private List<String> imageFiles; // 이미지 로컬파일 경로 (임시저장된 파일경로, S3 업로드 후에는 null로 세팅)
-    private List<String> uploadedImageLinks; // 업로드된 이미지링크 (쿠팡 등록하면서 세팅)
-    private List<String> smartstoreImageLinks;
 
-    private String productType; // 고시정보구분 ("FOOD" 또는 "HEALTH")
+    // ■■■□ ["https://cloudinary.images-iherb.com/image/44.jpg", ...]
+    private List<String> imageLinks;
+    // ■■■□ ['YumEarth (야미얼스)', '브랜드 A-Z', '하드 캔디 & 막대사탕', '식료품', '카테고리']
     private List<String> categoryNames;
+    // ●●●○
     private Integer smartstoreCategoryId;
+    // ●●●○
     private Integer elevenstCategoryId;
-
+    // ■■■■-■□□
+    private List<String> imageFiles;
+    // ■■■■-■■□
+    private List<String> uploadedImageLinks;
+    //
+    private List<String> smartstoreImageLinks;
 }

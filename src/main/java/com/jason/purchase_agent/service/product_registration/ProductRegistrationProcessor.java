@@ -41,7 +41,7 @@ public class ProductRegistrationProcessor {
     private final ElevenstApiService elevenstApiService;
     private final ObjectMapper objectMapper;
 
-    // 1단계 상품DB 저장
+    /*// 1단계 상품DB 저장
     public boolean saveProductDB(
             String batchId, ProductRegistrationRequest productDto) {
         try {
@@ -274,5 +274,5 @@ public class ProductRegistrationProcessor {
 
         // 실제 결과에 따라 반환
         return allSuccess;
-    }
+    }*/
 }
