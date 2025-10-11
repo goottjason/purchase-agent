@@ -213,6 +213,15 @@ public class MessageQueueService {
         // 큐에 쌓이고 나면 오토MQ Consumer에서 알아서 병렬로 처리 시작됨
     }
 
+    public void publishRegisterProductToCoupang(String batchId, ProductRegistrationRequest request) {
+    }
+
+    public void publishRegisterProductToSmartstore(String batchId, ProductRegistrationRequest request) {
+    }
+
+    public void publishRegisterProductToElevenst(String batchId, ProductRegistrationRequest request) {
+    }
+
 
 
     /*public void publishPriceUpdate(String channel, String productCode, String channelProductId, Integer newPrice) {

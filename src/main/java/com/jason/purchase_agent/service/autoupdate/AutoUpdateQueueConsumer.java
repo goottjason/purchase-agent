@@ -7,6 +7,7 @@ import com.jason.purchase_agent.dto.products.CrawlAndUpdateEachProductBySupplier
 import com.jason.purchase_agent.dto.products.ProductDto;
 import com.jason.purchase_agent.external.iherb.dto.IherbProductDto;
 import com.jason.purchase_agent.entity.Product;
+import com.jason.purchase_agent.messaging.MessageQueueService;
 import com.jason.purchase_agent.repository.jpa.ProcessStatusRepository;
 import com.jason.purchase_agent.repository.jpa.ProductRepository;
 import com.jason.purchase_agent.external.coupang.CoupangApiService;
@@ -41,6 +42,7 @@ public class AutoUpdateQueueConsumer {
     private final SmartstoreApiService smartstoreApiService;
     private final ElevenstApiService elevenstApiService;
     private final IherbProductCrawler iherbProductCrawler;
+    private final MessageQueueService messageQueueService;
 
     // 한 개의 상품에 대한 등록 로직
     @RabbitListener(queues = "register-each-product", concurrency = "1")
@@ -49,8 +51,19 @@ public class AutoUpdateQueueConsumer {
     ) {
         String batchId = msg.getBatchId();
         ProductRegistrationRequest request = msg.getRequest();
+        ProductDto productDto = msg.getRequest().getProductDto();
 
-
+        // (1) DB에 저장
+        productService.saveProductAndMapping(productDto);
+        log.info("[{}] DB 저장 완료", productDto.getCode());
+        pss.upsertProcessStatus(batchId, productDto.getCode(), null,
+                "REGISTER_PRODUCT", "SUCCESS", "새 상품 DB에 저장 성공");
+        // (2) 각 채널 메세지 발행
+        messageQueueService.publishRegisterProductToCoupang(batchId, request);
+        messageQueueService.publishRegisterProductToSmartstore(batchId, request);
+        messageQueueService.publishRegisterProductToElevenst(batchId, request);
+        pss.upsertProcessStatus(batchId, productDto.getCode(), null,
+                "REGISTER_PRODUCT_PUBLISH", "SUCCESS", "각 채널 메세지 발행 성공");
     }
 
     // 한 개의 상품에 대한 로직

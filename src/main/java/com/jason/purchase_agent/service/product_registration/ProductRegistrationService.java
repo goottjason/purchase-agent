@@ -18,9 +18,18 @@ import com.jason.purchase_agent.util.downloader.ImageDownloader;
 import com.jason.purchase_agent.util.uploader.UploadImagesApi;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.openqa.selenium.By;
+import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.WebElement;
+import org.openqa.selenium.chrome.ChromeDriver;
+import org.openqa.selenium.chrome.ChromeOptions;
+import org.openqa.selenium.support.ui.ExpectedConditions;
+import org.openqa.selenium.support.ui.WebDriverWait;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
+import java.io.File;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -255,7 +264,8 @@ public class ProductRegistrationService {
         }
 
         // 이미지 업로드
-        uploadImages(requests);
+        // request 에서 getImageFiles를 순회하여 로컬이미지를 업로드하고, setUploadedImageLinks 하는 메서드
+        crawlEsmAndUploadImages(requests);
 
         // 메세지 발행
         for (ProductRegistrationRequest request : requests) {
@@ -267,35 +277,94 @@ public class ProductRegistrationService {
 
     }
 
-    public void uploadImages(List<ProductRegistrationRequest> requests
-    ) {
+    public void crawlEsmAndUploadImages(List<ProductRegistrationRequest> requests) {
 
-        // 업로드 요청용 맵 리스트 생성
-        List<Map<String, Object>> imageUploadRequests = requests.stream()
-                .map(request ->
-                        Map.of("code", request.getProductDto().getCode(), "imageFiles", request.getImageFiles()))
-                .collect(Collectors.toList());
+        // 통합 이미지 리스트 (배치 전체)
+        List<String> imagePaths = new ArrayList<>();
+        Map<String, List<String>> codeToImagePaths = new LinkedHashMap<>();
+        for (ProductRegistrationRequest request : requests) {
+            List<String> localImages = request.getImageFiles();
+            imagePaths.addAll(localImages);
+            codeToImagePaths.put(request.getProductDto().getCode(), localImages);
+        }
 
-        // 이미지 업로드 시도
+        // headless 크롬 옵션
+        ChromeOptions options = new ChromeOptions();
+        options.addArguments("--no-sandbox", "--disable-gpu"); // , "--headless"
+        WebDriver driver = new ChromeDriver(options);
+
         try {
-            // 이미지 업로드 API 호출
-            List<ProductImageUploadResult> results = uploadImagesApi.batchUploadImages(imageUploadRequests);
+            // 1. 로그인
+            driver.get("https://signin.esmplus.com/login");
+            WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(15));
+            wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("typeMemberInputId01"))).sendKeys("shouldbeshop");
+            driver.findElement(By.id("typeMemberInputPassword01")).sendKeys("Mimi1570!!");
+            for (WebElement btn : driver.findElements(By.cssSelector("button[type='button']"))) {
+                if (btn.getText().contains("로그인")) { btn.click(); break; }
+            }
+            Thread.sleep(4000);
 
-            // 결과 매핑
-            Map<String, List<String>> codeToLinks = new HashMap<>();
-            for (ProductImageUploadResult result : results) {
-                codeToLinks.put(result.getCode(), result.getUploadedImageLinks());
-            }
-            for (ProductRegistrationRequest request : requests) {
-                // 업로드된 링크가 있으면 세팅, 없으면 실패 처리
-                List<String> uploadedImageLinks = codeToLinks.get(request.getProductDto().getCode());
-                if (uploadedImageLinks != null && !uploadedImageLinks.isEmpty()) {
-                    // 업로드된 링크 세팅
-                    request.setUploadedImageLinks(uploadedImageLinks);
+            // 2. 이미지호스팅 페이지 이동
+            driver.get("https://im.esmplus.com/IHv2/ImgMain/ImgView");
+            Thread.sleep(4000);
+
+            // 3. 셀러 선택
+            driver.findElement(By.cssSelector(".ui_select.user__current .ui_select_selected")).click();
+            wait.until(ExpectedConditions.elementToBeClickable(By.cssSelector("li.changeSeller[data-seller-id='shouldbe2480']"))).click();
+            Thread.sleep(2000);
+
+            // 4. 업로드 버튼, 파일 input 찾기
+            driver.findElement(By.id("fileUploadButton")).click();
+            WebElement fileInput = wait.until(ExpectedConditions.presenceOfElementLocated(By.cssSelector("input[type='file']")));
+
+            // 여러 파일 한번에 업로드 (배치 전체 업로드)
+            String joinedPaths = String.join("\n", imagePaths);
+            fileInput.sendKeys(joinedPaths);
+
+            // 5. 업로드 시작
+            WebElement startBtn = wait.until(ExpectedConditions.elementToBeClickable(By.id("fileUploadStartButton")));
+            startBtn.click();
+
+            // 6. 중복 파일 체크·덮어쓰기 등 처리(python 부분 거의 동일하게 자바로)
+            try {
+                WebElement warningIdx = driver.findElement(By.id("warningFileIndex"));
+                if (!"-1".equals(warningIdx.getAttribute("value"))) {
+                    WebElement checkBox = driver.findElement(By.id("warningFileNameCheck"));
+                    if (!checkBox.isSelected()) { checkBox.click(); }
+                    driver.findElement(By.id("btnOverWrite")).click();
                 }
+            } catch(Exception e) {
+                // 무시
             }
-        } catch (Exception e) {
+
+            // 7. 업로드 진행상황 대기 (최대 180초)
+            wait.withTimeout(Duration.ofSeconds(180)).until(
+                    d -> d.findElement(By.className("upload_status_progress")).getText().trim().equals("100")
+            );
+
+            // 8. 업로드된 파일명별 URL 조합
+            String baseUrl = "https://ai.esmplus.com/shouldbe2480/";
+            Map<String, List<String>> codeToLinks = new LinkedHashMap<>();
+            for (var entry : codeToImagePaths.entrySet()) {
+                String code = entry.getKey();
+                List<String> urls = entry.getValue().stream()
+                        .map(path -> baseUrl + new File(path).getName())
+                        .collect(Collectors.toList());
+                codeToLinks.put(code, urls);
+            }
+
+            // 9. 각 ProductRegistrationRequest의 setUploadedImageLinks 호출
+            for (ProductRegistrationRequest request : requests) {
+                String code = request.getProductDto().getCode();
+                List<String> uploadedImageLinks = codeToLinks.getOrDefault(code, Collections.emptyList());
+                request.setUploadedImageLinks(uploadedImageLinks);
+            }
+        } catch(Exception ex) {
+            ex.printStackTrace();
+        } finally {
+            driver.quit();
         }
     }
+
 
 }

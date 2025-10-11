@@ -383,7 +383,7 @@ $(function () {
   // 쿠팡상품명, 기타상품명, eng-byte, coupang-byte, etc-byte, salePrice 변경
   $(document).on('input',
     '.kor-name-input, .eng-name-input, .brand-name-input, .unit-input, .unit-value-input, ' +
-    '.pack-qty-input, .buy-price-input, #global-margin-rate', function () {
+    '.pack-qty-input, .buy-price-input', function () {
 
     const $tr = $(this).closest('tr');
 
@@ -420,6 +420,18 @@ $(function () {
     let salePrice = Math.floor(Math.round(buyPrice * (1 + ((marginRate / 100) ?? 0)) * packQty) / 100) * 100;
     // 반영: 판매가
     $tr.find('.sale-price-input').val(salePrice);
+  });
+  $('#global-margin-rate').on('input', function () {
+    const marginRate = parseFloat($(this).val()) || 0;
+
+    $('tr').each(function () {
+      const $tr = $(this);
+      const buyPrice = parseFloat($tr.find('.buy-price-input').val()) || 0;
+      const packQty = parseInt($tr.find('.pack-qty-input').val(), 10) || 1;
+
+      let salePrice = Math.floor(Math.round(buyPrice * (1 + (marginRate / 100)) * packQty) / 100) * 100;
+      $tr.find('.sale-price-input').val(salePrice);
+    });
   });
 
   // [3-4] 3단계 테이블 헤더 체크박스 (전체선택/해제)
