@@ -3,7 +3,8 @@ package com.jason.purchase_agent.service.process_status;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.jason.purchase_agent.entity.ProcessStatus;
-import com.jason.purchase_agent.repository.jpa.ProcessStatusRepository;
+import com.jason.purchase_agent.enums.JobType;
+import com.jason.purchase_agent.repository.ProcessStatusRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -13,9 +14,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.*;
-import java.util.stream.Collectors;
 
 import static com.jason.purchase_agent.util.converter.StringListConverter.objectMapper;
 
@@ -66,17 +65,21 @@ public class ProcessStatusService {
     @Transactional // 추가!
     public void upsertProcessStatus(
             String batchId, String productCode, String details,
-            String step, String status, String message
+            JobType jobType, String step, String status, String message
     ) {
         // 존재하면 update, 아니면 insert
         Optional<ProcessStatus> existingOpt = psr
                 .findByBatchIdAndProductCode(batchId, productCode);
+
         if (existingOpt.isPresent()) {
             ProcessStatus ps = existingOpt.get();
+
             if (details != null) ps.setDetails(details);
+            if (jobType  != null) ps.setJobType(jobType);
             if (step != null) ps.setStep(step);
             if (status != null) ps.setStatus(status);
             if (message != null) ps.setMessage(message);
+
             psr.save(ps);
         } else {
             // Insert 시에는 null -> ""로 초기화해도 되고, builder에서 null 체크해서 ""로 변환해도 됨
@@ -84,6 +87,7 @@ public class ProcessStatusService {
                     .batchId(batchId)
                     .productCode(productCode)
                     .details(details)    // null 그대로
+                    .jobType(jobType)
                     .step(step)          // null 그대로
                     .status(status)      // null 그대로
                     .message(message)    // null 그대로
@@ -158,5 +162,37 @@ public class ProcessStatusService {
                 );
         ps.setStatus(allSuccess ? "SUCCESS" : "FAIL");
         psr.save(ps);
+    }
+
+    @Transactional
+    public void updateBatchProgressSummary(
+            String batchId, int totalProductCount
+    ) {
+
+        List<ProcessStatus> all = psr.findAllByBatchId(batchId);
+
+        int finishedProducts = 0, success = 0, fail = 0;
+        for (ProcessStatus ps : all) {
+            // 상품별로 '등록완료' 등 step/status 체크
+            if ("CHANNEL_UPDATE".equals(ps.getStep()) || "SUCCESS".equals(ps.getStatus()) || "FAIL".equals(ps.getStatus())) {
+                finishedProducts++;
+                if ("SUCCESS".equals(ps.getStatus())) success++; // 성공은 status 기준
+                else fail++; // 이외는 실패로 기록
+            }
+        }
+
+        // 진행 메시지 예시 생성
+        String message;
+        if (finishedProducts < totalProductCount) {
+            message = String.format("%d/%d개 상품 등록중", finishedProducts, totalProductCount);
+        } else {
+            message = String.format("%d/%d개 상품 등록 완료 (성공 %d개, 실패 %d개)",
+                    finishedProducts, totalProductCount, success, fail);
+        }
+        // 최상위/대표 ProcessStatus(예: productCode==null 또는 UI에서 대표) message/status 업데이트
+        ProcessStatus main = psr.findByBatchIdAndProductCode(batchId, null).orElseThrow();
+        main.setMessage(message);
+        main.setStatus(finishedProducts == totalProductCount ? "COMPLETE" : "PROGRESS");
+        psr.save(main);
     }
 }

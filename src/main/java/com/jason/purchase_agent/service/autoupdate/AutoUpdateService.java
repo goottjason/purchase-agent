@@ -1,22 +1,10 @@
 package com.jason.purchase_agent.service.autoupdate;
 
-import com.jason.purchase_agent.dto.autoupdate.AutoUpdateMessage;
-import com.jason.purchase_agent.dto.products.ProductDto;
-import com.jason.purchase_agent.entity.Product;
-import com.jason.purchase_agent.entity.ProductChannelMapping;
-import com.jason.purchase_agent.repository.jpa.ProcessStatusRepository;
-import com.jason.purchase_agent.repository.jpa.ProductChannelMappingRepository;
-import com.jason.purchase_agent.repository.jpa.ProductRepository;
+import com.jason.purchase_agent.repository.ProcessStatusRepository;
+import com.jason.purchase_agent.repository.ProductChannelMappingRepository;
+import com.jason.purchase_agent.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
-import java.util.stream.Collectors;
-
-import static com.jason.purchase_agent.service.products.ProductService.convertToListDto;
 
 @Service
 @RequiredArgsConstructor
@@ -33,7 +21,7 @@ public class AutoUpdateService {
      * @param marginRate 마진율
      * @param requestedBy 요청자정보(이메일/ID 등)
      */
-    public void startAutoUpdate(
+    /*public void startAutoUpdate(
             String supplierCode, Integer marginRate, Integer couponRate, Integer minMarginPrice, String requestedBy
     ) {
         // [1] 배치ID 생성 (UUID)
@@ -81,5 +69,5 @@ public class AutoUpdateService {
             // MQ에 개별 메시지 발행 (아래 서비스 또는 MQ템플릿)
             autoUpdateQueueService.publishAutoUpdate(message);
         }
-    }
+    }*/
 }

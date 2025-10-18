@@ -5,7 +5,7 @@ import com.jason.purchase_agent.dto.categories.CategoryCreateDto;
 import com.jason.purchase_agent.dto.categories.CategoryTreeDto;
 import com.jason.purchase_agent.dto.categories.CategoryUpdateDto;
 import com.jason.purchase_agent.entity.Category;
-import com.jason.purchase_agent.repository.jpa.CategoryRepository;
+import com.jason.purchase_agent.repository.CategoryRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.*;

@@ -16,4 +16,5 @@ public class PriceUpdateChannelMessage {
     private String channelId2;      // vendorItemId 등 외부 채널 상품 ID
     private String productCode;     // 내부 상품코드
     private Integer salePrice;      // 가격 (원)
+    private Double marginRate;
 }

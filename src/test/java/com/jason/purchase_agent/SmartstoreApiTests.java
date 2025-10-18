@@ -1,11 +1,8 @@
 package com.jason.purchase_agent;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jason.purchase_agent.dto.channel.smartstore.SmartstoreCategoryResult;
-import com.jason.purchase_agent.dto.channel.smartstore.SmartstoreProductPageResultDto;
-import com.jason.purchase_agent.util.salechannelapi.smartstore.SmartstoreApiUtil;
-import org.json.JSONObject;
+import com.jason.purchase_agent.external.smartstore.SmartstoreApiUtil;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 

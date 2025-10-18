@@ -103,7 +103,7 @@ public class CoupangProductRequest {
      * Required
      */
     @Builder.Default
-    private Integer deliveryChargeOnReturn = 9000;
+    private Integer deliveryChargeOnReturn = 5000;
     /**
      * 도서산간 배송여부 'Y','N'
      * Required
@@ -157,7 +157,7 @@ public class CoupangProductRequest {
      * Required
      */
     @Builder.Default
-    private Integer returnCharge = 9000;
+    private Integer returnCharge = 5000;
     /**
      * 출고지 주소 코드 (묶음배송 선택시 필수)
      * Required

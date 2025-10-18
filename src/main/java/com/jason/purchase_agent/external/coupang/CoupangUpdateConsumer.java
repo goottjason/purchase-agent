@@ -28,7 +28,10 @@ public class CoupangUpdateConsumer {
     @RabbitListener(queues = "price-update-coupang", concurrency = "1")
     public void handlePriceUpdate(PriceUpdateChannelMessage msg) {
         try {
-            String responseJson = coupangApiService.updatePrice(msg.getChannelId1(), msg.getSalePrice());
+            Integer salePrice = msg.getSalePrice();
+            Double marginRate = msg.getMarginRate();
+            salePrice = (int) (Math.ceil((salePrice * (100 - 18.5 - marginRate) / (100 - 12 - marginRate))/100.0) * 100);
+            String responseJson = coupangApiService.updatePrice(msg.getChannelId1(), salePrice);
             JsonNode root = objectMapper.readTree(responseJson);
 
             String code = root.path("code").asText("");
@@ -37,15 +40,17 @@ public class CoupangUpdateConsumer {
             // 채널 결과 map 준비
             Map<String, Object> channelResult = new HashMap<>();
             if (findSuccess) {
-                String message = String.format("가격: %,d원, ID: %s", msg.getSalePrice(), msg.getChannelId1());
+                String message = String.format("가격: %,d원, ID: %s", salePrice, msg.getChannelId1());
                 channelResult.put("status", "SUCCESS");
                 channelResult.put("message", message);
                 log.info("[{}][Coupang][Price] 성공 (vendorItemId={}, salePrice={})",
-                        msg.getProductCode(), msg.getChannelId1(), msg.getSalePrice());
+                        msg.getProductCode(), msg.getChannelId1(), salePrice);
             } else {
-                String message = String.format("코드: {}", code);
+                String message = root.get("message").asText();
+                // String message = String.format("코드: {}", code);
                 channelResult.put("status", "FAIL");
                 channelResult.put("message", message);
+                // {"code":"ERROR","message":"가격변경에 실패했습니다. [옵션ID[87744527109] : 판매가 변경이 불가능합니다. 변경전 판매가의 최대 50% 인하/최대 100%인상까지 변경가능합니다.]"}
                 log.error("[{}][Coupang][Price] 실패 (responseJson={})",
                         msg.getProductCode(), responseJson);
             }

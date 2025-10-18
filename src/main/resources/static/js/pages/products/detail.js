@@ -67,36 +67,29 @@ function toggleEditMode(isEdit) {
  */
 function getFormData() {
   const data = {};
-  $('#productForm input, #productForm textarea').each(function() {
-    data[$(this).attr('name')] = $(this).val();
+  $('#productForm input:not([readonly]), #productForm textarea').each(function() {
+    const name = $(this).attr('name');
+    if (name) {
+      data[name] = $(this).val();
+    }
   });
   return data;
 }
 
 /**
- * 변경사항 감지
- * - 가격/재고가 달라졌는지
- * - 기타 값이 달라졌는지
- * (버튼별 안내/동작 분기)
+ * 가격/재고 변경 여부만 확인
  */
-function checkForChanges(original, current) {
-  let priceChanged = false, stockChanged = false, otherChanged = false;
-
-  if (original['salePrice'] !== current['salePrice']) priceChanged = true;
-  if (original['stock'] !== current['stock']) stockChanged = true;
-
-  for (let key in current) {
-    if (original[key] !== current[key] && !['salePrice','stock'].includes(key)) {
-      otherChanged = true;
-    }
-  }
+function checkPriceStockChanges(original, current) {
+  const priceChanged = original['salePrice'] !== current['salePrice'];
+  const stockChanged = original['stock'] !== current['stock'];
 
   return {
     priceChanged,
-    stockChanged,
-    otherChanged
+    stockChanged
   };
 }
+
+
 
 /**
  * 데이터 복원(취소 시)
@@ -110,9 +103,6 @@ function restoreOriginalData() {
 
 /**
  * 폼 유효성 검사
- * - 필수값: title, salePrice
- * - 숫자 유효성: salePrice, stock, buyPrice
- * - 올바르지 않으면 .is-invalid 적용(bootstrap)
  */
 function validateForm() {
   let isValid = true;
@@ -121,7 +111,8 @@ function validateForm() {
   const requiredFields = ['title', 'salePrice'];
   requiredFields.forEach(field => {
     const $field = $(`[name="${field}"]`);
-    if (!$field.val().trim()) {
+    const value = $field.val().trim();
+    if (!value) {
       $field.addClass('is-invalid');
       isValid = false;
     } else {
@@ -130,10 +121,10 @@ function validateForm() {
   });
 
   // 숫자 필드 값 체크
-  const numberFields = ['salePrice', 'stock', 'buyPrice'];
+  const numberFields = ['salePrice', 'stock', 'buyPrice', 'shippingCost'];
   numberFields.forEach(field => {
     const $field = $(`[name="${field}"]`);
-    const value = $field.val();
+    const value = $field.val().trim();
     if (value && (isNaN(value) || parseFloat(value) < 0)) {
       $field.addClass('is-invalid');
       isValid = false;
@@ -150,17 +141,26 @@ function validateForm() {
 }
 
 /**
- * 폼 데이터 서버로 제출(AJAX)
- * - 가격/재고 변경여부 파라미터 추가
- * - 성공 시 reload, 실패 시 alert
+ * 폼 전체를 서버로 제출
  */
 function submitForm(priceChanged, stockChanged) {
-  const formData = new FormData($('#productForm')[0]);
-  formData.append('priceChanged', priceChanged);
-  formData.append('stockChanged', stockChanged);
+  const $form = $('#productForm');
+
+  // 기존 priceChanged, stockChanged input이 있으면 제거
+  $form.find('input[name="priceChanged"], input[name="stockChanged"]').remove();
+
+  // hidden input 추가
+  $form.append(`<input type="hidden" name="priceChanged" value="${priceChanged}">`);
+  $form.append(`<input type="hidden" name="stockChanged" value="${stockChanged}">`);
+
+  // FormData 생성 (전체 폼 데이터)
+  const formData = new FormData($form[0]);
+
+  console.log('전송 데이터:', Object.fromEntries(formData));
+  console.log('가격 변경:', priceChanged, '재고 변경:', stockChanged);
 
   $.ajax({
-    url: $('#productForm').attr('action'),
+    url: $form.attr('action'),
     type: 'PUT',
     data: formData,
     processData: false,
@@ -170,6 +170,7 @@ function submitForm(priceChanged, stockChanged) {
       location.reload();
     },
     error: function(xhr) {
+      console.error('Error:', xhr);
       alert('업데이트 중 오류가 발생했습니다: ' + (xhr.responseJSON?.message || '알 수 없는 오류'));
     }
   });
@@ -197,22 +198,22 @@ $(document).ready(function() {
   // 저장 버튼 클릭 이벤트 핸들러
   // -------------------------
   $('#saveBtn').click(function() {
-    // 유효성 검사
     if (validateForm()) {
       const currentData = getFormData();
-      // 변경사항 diff 확인 (가격/재고 vs 기타)
-      const changes = checkForChanges(originalData, currentData);
+      console.log('현재 데이터:', currentData);
 
+      // 가격/재고 변경 여부만 확인
+      const changes = checkPriceStockChanges(originalData, currentData);
+      console.log('가격 변경:', changes.priceChanged, '재고 변경:', changes.stockChanged);
+
+      // 가격이나 재고가 변경된 경우 확인 메시지
       if (changes.priceChanged || changes.stockChanged) {
-        // 안내 메시지는 둘 중 하나라도 변경되면 띄우고,
         if (confirm('가격 또는 재고가 변경되었습니다. 연결된 판매 채널에 업데이트 요청이 발송됩니다. 계속하시겠습니까?')) {
-          submitForm(changes.priceChanged, changes.stockChanged);  // 두 값 모두 전달
+          submitForm(changes.priceChanged, changes.stockChanged);
         }
-      } else if (changes.otherChanged) {
-        submitForm(false, false); // 기타 변경
       } else {
-        alert('변경된 내용이 없습니다.');
-        toggleEditMode(false);
+        // 가격/재고 외 다른 필드만 변경된 경우
+        submitForm(false, false);
       }
     }
   });

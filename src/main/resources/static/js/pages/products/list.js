@@ -62,7 +62,7 @@ function crawlAndPriceStockUpdate() {
   });
 
   $.ajax({
-    url: '/products/crawl-and-price-stock-update?' + qs,
+    url: '/products/crawl-and-update-price-stock?' + qs,
     method: 'POST',
     contentType: 'application/json',
     data: JSON.stringify(requests),
@@ -190,7 +190,7 @@ function manualPriceStockUpdate() {
   }));
 
   $.ajax({
-    url: '/products/manual-price-stock-update',
+    url: '/products/modify-and-update-price-stock',
     method: 'POST',
     contentType: 'application/json',
     data: JSON.stringify(requests), // 바로 배열로 보냄!

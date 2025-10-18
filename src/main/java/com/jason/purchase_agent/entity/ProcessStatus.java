@@ -1,5 +1,6 @@
 package com.jason.purchase_agent.entity;
 
+import com.jason.purchase_agent.enums.JobType;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -31,11 +32,16 @@ public class ProcessStatus {
     @Column()
     private String productCode;
 
-    @Column(nullable = false)
-    private String step; // 현재 진행중(혹은 마지막으로 시도한) 단계
+    // === 추가 필드 ===
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = true) // 나중에 false로 바꿔서 수정해야돼
+    private JobType jobType;  // 작업 유형
 
     @Column(nullable = false)
-    private String status; // PENDING / SUCCESS / FAIL, 현재 상태
+    private String step; // INIT, DATA_PREPARATION, VALIDATION, DB_SAVE, CHANNEL_UPDATE, COMPLETED
+
+    @Column(nullable = false)
+    private String status; // PENDING, IN_PROGRESS, SUCCESS, FAILED
 
     @Column(length = 1000)
     private String message;  // 상태 메시지 (에러포함)

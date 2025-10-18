@@ -2,7 +2,7 @@ package com.jason.purchase_agent;
 
 import com.jason.purchase_agent.external.elevenst.ElevenstApiService;
 import com.jason.purchase_agent.util.converter.ElevenstXmlConverter;
-import com.jason.purchase_agent.util.salechannelapi.elevenst.ElevenstApiUtil;
+import com.jason.purchase_agent.external.elevenst.ElevenstApiUtil;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;

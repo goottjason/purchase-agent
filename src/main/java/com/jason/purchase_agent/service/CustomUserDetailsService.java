@@ -2,7 +2,7 @@ package com.jason.purchase_agent.service;
 
 import com.jason.purchase_agent.entity.User;
 import com.jason.purchase_agent.enums.LoginType;
-import com.jason.purchase_agent.repository.jpa.UserRepository;
+import com.jason.purchase_agent.repository.UserRepository;
 import com.jason.purchase_agent.security.CustomUserDetails;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

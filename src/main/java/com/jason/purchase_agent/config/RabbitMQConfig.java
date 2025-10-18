@@ -24,37 +24,22 @@ public class RabbitMQConfig {
         return template;
     }
 
-    // ===========================
-    // 큐 선언부 (durable=true 일관)
-    // ===========================
+    @Bean
+    public Queue registerProductToCoupang() { return new Queue("register-product-to-coupang", true); }
+    @Bean
+    public Queue registerProductToSmartstore() { return new Queue("register-product-to-smartstore", true); }
+    @Bean
+    public Queue registerProductToElevenst() { return new Queue("register-product-to-elevenst", true); }
+    @Bean
+    public Queue registerProductToCafe() { return new Queue("register-product-to-cafe", true); }
 
-    // ===========================
-    // 큐 선언부 (durable=true 일관)
-    // ===========================
     @Bean
-    public Queue productRegistrationQueue() {
-        return new Queue("product_registration_queue", true);
-    }
+    public Queue crawlAndUpdateEachProductBySupplierQueue() { return new Queue("crawl-and-update-price-stock", true); }
     @Bean
-    public Queue productRegistrationRetryQueue() {
-        return new Queue("product_registration_retry_queue", true);
-    }
+    public Queue manualUpdatePriceStockQueue() { return new Queue("manual-update-price-stock", true); }
     @Bean
-    public Queue autoUpdateQueue() {
-        return new Queue("product.auto_update", true);
-    }
-    @Bean
-    public Queue productsBatchAutoPriceStockUpdateQueue() {
-        return new Queue("products.batch_auto_price_stock_update_queue", true);
-    }
-    @Bean
-    public Queue productsBatchManualPriceStockUpdateQueue() {
-        return new Queue("products.batch_manual_price_stock_update_queue", true);
-    }
+    public Queue manualUpdateAllFieldsQueue() { return new Queue("manual-update-all-fields", true); }
 
-    // ===========================
-    // price/stock update 큐들 추가
-    // ===========================
     @Bean
     public Queue priceUpdateCoupangQueue() {
         return new Queue("price-update-coupang", true);
@@ -83,15 +68,4 @@ public class RabbitMQConfig {
     }
     @Bean
     public Queue stockUpdateCafeQueue() { return new Queue("stock-update-cafe", true); }
-    @Bean
-    public Queue vendorItemIdSyncCoupangQueue() { return new Queue("vendoritemid-sync-coupang", true); }
-    @Bean
-    public Queue crawlAndUpdateEachProductBySupplierQueue() {
-        return new Queue("crawl-and-update-each-product-by-supplier", true);
-    }
-    @Bean
-    public Queue registerEachProductQueue() {
-        return new Queue("register-each-product", true);
-    }
-
 }

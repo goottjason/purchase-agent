@@ -27,7 +27,10 @@ public class SmartstoreUpdateConsumer {
     @RabbitListener(queues = "price-update-smartstore", concurrency = "1")
     public void handlePriceUpdate(PriceUpdateChannelMessage msg) {
         try {
-            String responseJson = smartstoreApiService.updatePrice(msg.getChannelId1(), msg.getSalePrice());
+            Integer salePrice = msg.getSalePrice();
+            Double marginRate = msg.getMarginRate();
+            salePrice = (int) (Math.ceil((salePrice * (100 - 18.5 - marginRate) / (100 - 17 - marginRate))/100.0) * 100);
+            String responseJson = smartstoreApiService.updatePrice(msg.getChannelId1(), salePrice);
             JsonNode root = objectMapper.readTree(responseJson);
 
             String code = root.has("code") ? root.path("code").asText() : null;
@@ -42,9 +45,9 @@ public class SmartstoreUpdateConsumer {
             } else {
                 // 성공 케이스 (code 없음)
                 status = "SUCCESS";
-                returnedMessage = String.format("가격: %,d원, ID: %s", msg.getSalePrice(), msg.getChannelId1());
+                returnedMessage = String.format("가격: %,d원, ID: %s", salePrice, msg.getChannelId1());
                 log.info("[{}][Smartstore][Price] 성공 (originProductNo={}, salePrice={})"
-                        , msg.getProductCode(), msg.getChannelId1(), msg.getSalePrice());
+                        , msg.getProductCode(), msg.getChannelId1(), salePrice);
             }
 
             Map<String, Object> channelResult = new HashMap<>();

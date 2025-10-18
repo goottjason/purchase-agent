@@ -18,12 +18,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static com.jason.purchase_agent.util.salechannelapi.coupang.CoupangApiUtil.executeRequest;
+import static com.jason.purchase_agent.external.coupang.CoupangApiUtil.executeRequest;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class CoupangApiService {
+
+    private final ObjectMapper objectMapper;
 
     public String findProductInfo(String sellerProductId) {
         log.info("[CoupangAPI][ProductInfo] 상품 조회 요청 - sellerProductId={}", sellerProductId);
@@ -43,14 +45,15 @@ public class CoupangApiService {
         }
     }
 
-
     public String updatePrice(String vendorItemId, Integer salePrice) {
         try {
             String path = String.format(
                     "/v2/providers/seller_api/apis/api/v1/marketplace/vendor-items/%s/prices/%d",
                     vendorItemId, salePrice);
+            Map<String, String> params = new HashMap<>();
+            params.put("forceSalePriceUpdate", "true");
 
-            String response = executeRequest("PUT", path, null, null);
+            String response = executeRequest("PUT", path, params, null);
             return response;
         } catch (Exception e) {
             log.error("[CoupangUpdatePrice] 요청 에러 (vendorItemId={}, salePrice={}, e.getMessage()={})",
@@ -73,95 +76,19 @@ public class CoupangApiService {
         }
     }
 
-
-    public void updatePriceStock(String vendorItemId, Integer salePrice, Integer stock) {
-        String pathPrice = String.format("/v2/providers/seller_api/apis/api/v1/marketplace/vendor-items/%s/prices/%d",
-                vendorItemId, salePrice);
-        String resPrice = executeRequest("PUT", pathPrice, null, null);
-        System.out.println("resPrice = " + resPrice);
-        String pathStock = String.format("/v2/providers/seller_api/apis/api/v1/marketplace/vendor-items/%s/quantities/%d",
-                vendorItemId, stock);
-        String resStock = executeRequest("PUT", pathStock, null, null);
-        System.out.println("resStock = " + resStock);
-    }
-
-    public String enrollProducts(ProductRegistrationRequest request) {
-        // 쿠팡 상품등록 API 호출 로직 구현
-        ProductDto productDto = request.getProductDto();
-
-        // 1. CoupangProductRequest의 팩토리메서드로 DTO 생성
-        CoupangProductRequest.CoupangProductRequestBuilder coupangProductRequest
-                = CoupangProductRequest.from(productDto).toBuilder();
-
-        // 2. product의 정보를 토대로 카테고리추천 API 호출, requestBuilder의 displayCategoryCode에 세팅
-        String categoryId = null;
+    public String registerProduct(
+            CoupangProductRequest request
+    ) {
         try {
-            categoryId = recommendDisplayCategory(productDto);
-        } catch (JsonProcessingException e) {
-            // 예외처리: 기본 카테고리 세팅 또는 에러 반환
-            e.printStackTrace();
-            return "Error: 카테고리 추천 실패 - " + e.getMessage();
+            String path = "/v2/providers/seller_api/apis/api/v1/marketplace/seller-products";
+            Map<String, Object> body = objectMapper.convertValue(request, Map.class);
+            String response = executeRequest("POST", path, null, body);
+            return response;
+        } catch (Exception e) {
+            log.error("[CoupangRegister] 요청 에러 (request={}, e.getMessage()={})",
+                    request, e.getMessage());
+            return "{}";
         }
-        coupangProductRequest.displayCategoryCode(Long.parseLong(categoryId));
-
-        // 3. 카테고리 메타정보 API 호출 (필수 고시정보, 속성 등)
-        CoupangCategoryMetaInfoDto metaInfo = null;
-        try {
-            metaInfo = fetchCategoryMetaInfo(Long.parseLong(categoryId));
-        } catch (IOException e) {
-            e.printStackTrace();
-            return "Error: 카테고리 메타정보 조회 실패 - " + e.getMessage();
-        }
-
-        // 4. Notice (고시정보) 세팅
-        List<CoupangProductRequest.Notice> notices;
-        if ("HEALTH".equalsIgnoreCase(productDto.getProductType())) {
-            notices = CoupangProductRequest.HEALTH_FUNCTIONAL_NOTICES;
-        } else {
-            notices = CoupangProductRequest.PROCESSED_FOOD_NOTICES;
-        }
-
-        // 5. Attributes (옵션/속성) 세팅
-        List<CoupangProductRequest.Attribute> attributes = buildRequiredAttributes(metaInfo, productDto);
-
-        // 6. 이미지 세팅
-        List<CoupangProductRequest.Image> images = buildImageList(request.getUploadedImageLinks());
-
-        // 7. 상세페이지(contents) 생성 (이미지와 간단한 상품 요약 설명)
-        List<CoupangProductRequest.Content> contents = buildProductContents(request);
-
-        // 8. 아이템이름 세팅
-        String itemName = buildItemName(productDto);
-
-        // List<CoupangProductRequest.Certification> certifications = buildCertifications(product);
-
-        // 9. Item(옵션) 객체 완성
-        CoupangProductRequest.Item item = CoupangProductRequest.Item.builder()
-                .itemName(itemName)
-                .originalPrice((int) (Math.round(productDto.getSalePrice() * (1 + productDto.getMarginRate()/100.0) / 100.0) * 100))
-                .salePrice(productDto.getSalePrice())
-                .unitCount(productDto.getPackQty() > 0 ? productDto.getPackQty() : 1)
-                .externalVendorSku(productDto.getCode())
-                .images(images)
-                .notices(notices)
-                .attributes(attributes)
-                .contents(contents)
-                // .certifications(certifications)
-                .build();
-
-        // 10. Request DTO 최종 빌드
-        CoupangProductRequest coupangProductRequest1 = coupangProductRequest.items(List.of(item)).build();
-
-        // 11. 최종 API 호출
-        String path = "/v2/providers/seller_api/apis/api/v1/marketplace/seller-products";
-        String method = "POST";
-        Map<String, String> params = null; // 상품등록 API는 쿼리 파라미터 없음
-
-        // request를 Map 변환 (Jackson 사용)
-        ObjectMapper mapper = new ObjectMapper();
-        Map<String, Object> body = mapper.convertValue(coupangProductRequest1, Map.class);
-
-        return executeRequest(method, path, params, body);
     }
 
     public String recommendDisplayCategory(ProductDto product) throws JsonProcessingException {
@@ -192,7 +119,7 @@ public class CoupangApiService {
     }
 
 
-    private String buildItemName(ProductDto product) {
+    public String buildItemName(ProductDto product) {
         StringBuilder sb = new StringBuilder();
 
         // 단위/수량이 명확한 경우 (ex: 453ml_3개)
@@ -205,7 +132,7 @@ public class CoupangApiService {
         return sb.toString();
     }
 
-    private List<CoupangProductRequest.Content> buildProductContents(
+    public List<CoupangProductRequest.Content> buildProductContents(
             ProductRegistrationRequest request
     ) {
         ProductDto product = request.getProductDto();
@@ -244,7 +171,6 @@ public class CoupangApiService {
                 </div>
                 """, korName, engName, packQty, unitValue, unit, imgTagBlock)
                 .replaceAll("\\s*\\n\\s*", "");;
-        System.out.println("●html = " + html);
         product.setDetailsHtml(html); // html은 깔끔하게 잘 생성되었음
 
         CoupangProductRequest.ContentDetail contentDetail = CoupangProductRequest.ContentDetail.builder()
@@ -267,7 +193,7 @@ public class CoupangApiService {
     }
 
 
-    private List<CoupangProductRequest.Image> buildImageList(List<String> uploadedUrls) {
+    public List<CoupangProductRequest.Image> buildImageList(List<String> uploadedUrls) {
         List<CoupangProductRequest.Image> result = new ArrayList<>();
         if (uploadedUrls == null) return result;
         for (int i = 0; i < uploadedUrls.size(); i++) {
@@ -281,7 +207,7 @@ public class CoupangApiService {
     }
 
 
-    private List<CoupangProductRequest.Attribute> buildRequiredAttributes(
+    public List<CoupangProductRequest.Attribute> buildRequiredAttributes(
             CoupangCategoryMetaInfoDto metaInfo, ProductDto product
     ) {
         List<CoupangProductRequest.Attribute> attributes = new ArrayList<>();
@@ -351,4 +277,14 @@ public class CoupangApiService {
         return null;
     }
 
+    public List<CoupangProductRequest.Notice> buildNoticeByProductType(
+            ProductDto productDto) {
+        List<CoupangProductRequest.Notice> notices;
+        if ("HEALTH".equalsIgnoreCase(productDto.getProductType())) {
+            notices = CoupangProductRequest.HEALTH_FUNCTIONAL_NOTICES;
+        } else {
+            notices = CoupangProductRequest.PROCESSED_FOOD_NOTICES;
+        }
+        return notices;
+    }
 }

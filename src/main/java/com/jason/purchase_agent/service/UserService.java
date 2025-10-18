@@ -1,9 +1,7 @@
 package com.jason.purchase_agent.service;
 
 import com.jason.purchase_agent.entity.User;
-import com.jason.purchase_agent.enums.LoginType;
-import com.jason.purchase_agent.enums.UserRole;
-import com.jason.purchase_agent.repository.jpa.UserRepository;
+import com.jason.purchase_agent.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;

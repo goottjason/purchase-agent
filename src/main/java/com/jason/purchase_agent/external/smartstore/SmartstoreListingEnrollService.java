@@ -1,9 +1,7 @@
 package com.jason.purchase_agent.external.smartstore;
 
-import com.jason.purchase_agent.dto.channel.smartstore.SmartstoreProductRequest;
-
 public class SmartstoreListingEnrollService {
-    public SmartstoreProductRequest createProductRequest(String productName, String categoryId, Integer price) {
+    /*public SmartstoreProductRequest createProductRequest(String productName, String categoryId, Integer price) {
         return SmartstoreProductRequest.builder()
                 .originProduct(SmartstoreProductRequest.OriginProduct.builder()
                         .name(productName)
@@ -18,6 +16,6 @@ public class SmartstoreListingEnrollService {
                         .channelProductName(productName)
                         .build())
                 .build();
-    }
+    }*/
 }
 

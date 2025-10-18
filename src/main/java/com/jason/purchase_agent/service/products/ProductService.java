@@ -7,35 +7,35 @@ import com.jason.purchase_agent.dto.products.ManualPriceStockUpdateRequest;
 import com.jason.purchase_agent.dto.products.ProductUpdateRequest;
 import com.jason.purchase_agent.dto.suppliers.SupplierDto;
 import com.jason.purchase_agent.entity.ProcessStatus;
+import com.jason.purchase_agent.enums.JobType;
+import com.jason.purchase_agent.enums.UpdateType;
 import com.jason.purchase_agent.external.coupang.CoupangApiService;
-import com.jason.purchase_agent.external.iherb.IherbProductCrawler;
 import com.jason.purchase_agent.external.iherb.dto.IherbProductDto;
 import com.jason.purchase_agent.messaging.MessageQueueService;
 import com.jason.purchase_agent.dto.products.ProductDto;
 import com.jason.purchase_agent.dto.products.ProductSearchDto;
 import com.jason.purchase_agent.entity.Product;
 import com.jason.purchase_agent.entity.ProductChannelMapping;
-import com.jason.purchase_agent.repository.jpa.ProcessStatusRepository;
-import com.jason.purchase_agent.repository.jpa.ProductRepository;
-import com.jason.purchase_agent.repository.jpa.ProductChannelMappingRepository;
+import com.jason.purchase_agent.repository.ProcessStatusRepository;
+import com.jason.purchase_agent.repository.ProductRepository;
+import com.jason.purchase_agent.repository.ProductChannelMappingRepository;
 import com.jason.purchase_agent.service.process_status.ProcessStatusService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.datafaker.providers.base.Job;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
-import static com.jason.purchase_agent.common.calculator.Calculator.calculateSalePrice;
+import static com.jason.purchase_agent.util.Calculator.calculateSalePrice;
 import static com.jason.purchase_agent.external.iherb.IherbProductCrawler.crawlProductAsJson;
-import static com.jason.purchase_agent.util.converter.StringListConverter.objectMapper;
 import static com.jason.purchase_agent.util.exception.ExceptionUtils.uncheck;
 
 @Service
@@ -51,6 +51,88 @@ public class ProductService {
     private final ProcessStatusRepository psr;
     private final MessageQueueService messageQueueService;
     private final ObjectMapper objectMapper;
+
+    // ===== 공통 진입점 메서드 =====
+    public void processProductUpdate(
+            JobType jobType,
+            Integer marginRate,
+            Integer couponRate,
+            Integer minMarginPrice,
+            List<ProductUpdateRequest> requests
+    ) {
+        String batchId = initializeBatch(jobType, requests);
+
+        for (ProductUpdateRequest request : requests) {
+            applyDelayBetweenRequests();
+
+            if (jobType == JobType.CRAWL_AND_UPDATE_PRICE_STOCK) {
+                request.getProductDto().setMarginRate(Double.valueOf(marginRate));
+            }
+
+            publishUpdateMessage(jobType, marginRate, couponRate, minMarginPrice, request, batchId);
+        }
+    }
+    // ===== 공통 유틸리티 메서드들 =====
+    private String initializeBatch(JobType jobType, List<ProductUpdateRequest> requests) {
+        String batchId = UUID.randomUUID().toString();
+        String batchInitMsg = String.format("%d개 배치 시작 (%s)", requests.size(), jobType.name());
+
+        pss.upsertProcessStatus(batchId, null, createBatchSummaryDetails(requests),
+                jobType, jobType.name(), "PENDING", batchInitMsg);
+
+        return batchId;
+    }
+
+    private void applyDelayBetweenRequests() {
+        try {
+            Thread.sleep(3000);
+        } catch (InterruptedException ignored) {
+            Thread.currentThread().interrupt();
+        }
+    }
+    private void publishUpdateMessage(
+            JobType jobType,
+            Integer marginRate,
+            Integer couponRate,
+            Integer minMarginPrice,
+            ProductUpdateRequest request,
+            String batchId
+    ) {
+        switch (jobType) {
+            case CRAWL_AND_UPDATE_PRICE_STOCK:
+                messageQueueService.publishCrawlAndUpdatePriceStock(
+                        marginRate, couponRate, minMarginPrice, request, batchId);
+                break;
+            case MANUAL_UPDATE_PRICE_STOCK:
+                messageQueueService.publishManualUpdatePriceStock(request, batchId);
+                break;
+            case MANUAL_UPDATE_ALL_FIELDS:
+                messageQueueService.publishManualUpdateAllFields(request, batchId);
+                break;
+        }
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     public List<ProductUpdateRequest> makeRequestsBySupplier(
             String supplierCode
@@ -95,6 +177,8 @@ public class ProductService {
         Integer salePrice = calculateSalePrice(marginRate, couponRate, minMarginPrice, productDto.getPackQty(), iherbProductDto);
         Integer stock = Boolean.TRUE.equals(iherbProductDto.getIsAvailableToPurchase()) ? 500 : 0;
 
+        if(iherbProductDto.getIsDiscontinued() || iherbProductDto.getProhibited()) productDto.setMemo("생산중단");
+
         productDto.setSalePrice(salePrice);
         productDto.setStock(stock);
     }
@@ -137,6 +221,11 @@ public class ProductService {
                     }
                 }
             }
+            // 임시 코드 시작
+            String responseJson = coupangApiService.findProductInfo(productDto.getSellerProductId());
+            log.info("responseJson={}", responseJson);
+            // 임시 코드 끝
+
             // 실시간 체크로 변경
             if (productDto.getVendorItemId() != null && !productDto.getVendorItemId().isBlank() && priceChanged) {
                 messageQueueService.publishPriceUpdateChannel(batchId, "coupang", productDto);
@@ -213,8 +302,21 @@ public class ProductService {
                 searchDto.getPageSize(),
                 searchDto.getPageNumber());
 
-        // 페이징 객체 생성
-        // Pageable pageable = PageRequest.of(searchDto.getPageNumber(), searchDto.getPageSize());
+        // ⭐ 검색어에 쉼표가 포함된 경우 처리
+        List<String> productCodes = null;
+        String normalSearchKeyword = searchDto.getSearchKeyword();
+
+        if (searchDto.getSearchKeyword() != null && searchDto.getSearchKeyword().contains(",")) {
+            // 쉼표로 분리하여 상품코드 리스트 생성
+            productCodes = Arrays.stream(searchDto.getSearchKeyword().split(","))
+                    .map(String::trim)  // 공백 제거
+                    .filter(s -> !s.isEmpty())  // 빈 문자열 제외
+                    .collect(Collectors.toList());
+
+            normalSearchKeyword = null;  // 쉼표가 있으면 일반 검색은 비활성화
+
+            log.info("⭐ 쉼표로 구분된 상품코드 검색 활성화: {} (총 {}개)", productCodes, productCodes.size());
+        }
 
         // 필터 조건 로그 출력
         if (searchDto.hasChannelNullFilters()) {
@@ -228,7 +330,8 @@ public class ProductService {
 
         // 상품 데이터 조회 (새로운 필터 쿼리 사용)
         Page<Product> productPage = productRepository.findProductsWithFilters(
-                searchDto.getSearchKeyword(),
+                normalSearchKeyword,
+                productCodes,
                 searchDto.getSupplierCodes(),
                 Boolean.TRUE.equals(searchDto.getFilterNullVendorItemId()),
                 Boolean.TRUE.equals(searchDto.getFilterNullSellerProductId()),
@@ -239,12 +342,12 @@ public class ProductService {
         );
 
         // 상품 코드 리스트 추출
-        List<String> productCodes = productPage.getContent().stream()
+        List<String> codes = productPage.getContent().stream()
                 .map(Product::getCode)
                 .collect(Collectors.toList());
 
         // 채널매핑 정보 조회
-        List<ProductChannelMapping> channelMappings = channelMappingRepository.findByProductCodeIn(productCodes);
+        List<ProductChannelMapping> channelMappings = channelMappingRepository.findByProductCodeIn(codes);
         Map<String, ProductChannelMapping> mappingMap = channelMappings.stream()
                 .collect(Collectors.toMap(ProductChannelMapping::getProductCode, mapping -> mapping));
 
@@ -349,6 +452,7 @@ public class ProductService {
      */
     @Transactional(rollbackFor = Exception.class)
     public String updateProductAndMappingWithSync(
+            JobType jobType,
             String code, ProductDto productDto,
             boolean priceChanged, boolean stockChanged, String batchId
     ) {
@@ -383,7 +487,7 @@ public class ProductService {
              * 최초 시도시, insert
              * 재시도시, update
              */
-            upsertProcessStatusStart(batchId, code, detailsJson, isRetry);
+            upsertProcessStatusStart(jobType, batchId, code, detailsJson, isRetry);
             log.info("[ProcessStatus] 처리 시작 상태 기록 완료 - batchId={}", batchId);
 
             /** (3) product, mapping 테이블 조회하여 엔티티로 저장
@@ -406,7 +510,7 @@ public class ProductService {
              *
              */
             pss.upsertProcessStatus(
-                    batchId, code, null,
+                    batchId, code, null, jobType,
                     "CHANNEL UPDATE", "PENDING", "{}");
             log.info("[ProcessStatus] DB 저장 완료 상태 기록 - batchId={}", batchId);
 
@@ -420,9 +524,9 @@ public class ProductService {
              */
             if (needCoupangSync(mapping, priceChanged, stockChanged)) {
                 if (mapping.getVendorItemId() == null || mapping.getVendorItemId().isBlank()) {
-                    messageQueueService.publishVendorItemIdSync(
+                    /*messageQueueService.publishVendorItemIdSync(
                             mapping, product, batchId, priceChanged, stockChanged);
-                    log.info("[MQ][VENDOR_ID_SYNC] 발행");
+                    log.info("[MQ][VENDOR_ID_SYNC] 발행");*/
                 } else {
                     // vendorItemId 존재 → Price/Stock 메시지 바로 발행
                     /*if (priceChanged) messageQueueService.publishPriceUpdate(
@@ -444,7 +548,7 @@ public class ProductService {
             log.error("[Error] 상품/연동정보 업데이트 실패 - batchId={}, code={}, 원인={}",
                     batchId, code, ex.getMessage(), ex);
             pss.upsertProcessStatus(
-                    batchId, code, null,
+                    batchId, code, null, jobType,
                     "DB SAVE", "FAILED", ex.getMessage());
             throw ex;
         }
@@ -509,18 +613,18 @@ public class ProductService {
     /**
      * 처리 시작 시 프로세스 상태를 PENDING으로 기록 (최초/재시도 메시지 구분)
      */
-    private void upsertProcessStatusStart(
+    private void upsertProcessStatusStart(JobType jobType,
             String batchId, String code, String detailsJson, boolean isRetry
     ) {
         String msg = isRetry ? "상품 수정 재시도 요청" : "상품 수정 처리 시작";
-        pss.upsertProcessStatus(batchId, code, detailsJson,
+        pss.upsertProcessStatus(batchId, code, detailsJson, jobType,
                 "DB SAVE", "PENDING", msg);
     }
 
     /**
      * 상품 코드로 DB에서 상품을 조회하고, 없으면 예외 발생.
      */
-    private Product getProductOrThrow(
+    public Product getProductOrThrow(
             String code
     ) {
         return productRepository.findById(code)
@@ -688,8 +792,10 @@ public class ProductService {
         }
     }
 
+    @Async
     @Transactional
-    public void crawlAndUpdateBySupplier (
+    public void crawlAndUpdatePriceStock(
+            JobType jobType,
             Integer marginRate, Integer couponRate, Integer minMarginPrice,
             List<ProductUpdateRequest> requests
     ) {
@@ -697,13 +803,16 @@ public class ProductService {
 
         for (ProductUpdateRequest request : requests) {
             try { Thread.sleep(3000); } catch (InterruptedException ignored) {}
+            // 마진율 반영
+            request.getProductDto().setMarginRate(Double.valueOf(marginRate));
             // 각 상품에 대해 메세지 발행
-            messageQueueService.publishCrawlAndUpdateEachProductBySupplier(
+            messageQueueService.publishCrawlAndUpdatePriceStock(
                     marginRate, couponRate, minMarginPrice, request, batchId);
         }
 
         String batchInitMsg = String.format("%d개 배치 시작", requests.size());
         pss.upsertProcessStatus(batchId, null, createBatchSummaryDetails(requests),
+                jobType,
                 "UPDATE_PRODUCTS", "PENDING", batchInitMsg);
     }
 
@@ -738,7 +847,7 @@ public class ProductService {
     public String updateProductsBatch(
             List<ProductUpdateRequest> requests, String batchId
     ) {
-        boolean isRetry = (batchId != null && !batchId.isEmpty());
+        /*boolean isRetry = (batchId != null && !batchId.isEmpty());
 
         // (1) batchId 생성 (최초) 또는 재사용 (재시도)
         if (!isRetry) {
@@ -760,8 +869,8 @@ public class ProductService {
 
         for (ProductUpdateRequest request : requests) {
             try {
-                /*updateSingleProductInBatch(batchId, request.getCode(), request.getProductDto(),
-                        request.isPriceChanged(), request.isStockChanged(), isRetry);*/
+                *//*updateSingleProductInBatch(batchId, request.getCode(), request.getProductDto(),
+                        request.isPriceChanged(), request.isStockChanged(), isRetry);*//*
                 successCount++;
 
                 // (4) 진행상황 업데이트 (총괄 row)
@@ -795,7 +904,8 @@ public class ProductService {
                 "BATCH_UPDATE", finalStatus, finalMessage);
         log.info("[Batch] 배치 완료 - batchId={}, 성공={}, 실패={}, 실패코드={}",
                 batchId, successCount, failCount, failedCodes);
-        return batchId;
+        return batchId;*/
+        return "";
     }
 
     /**
@@ -809,7 +919,7 @@ public class ProductService {
             String batchId, String code, ProductDto productDto,
             boolean priceChanged, boolean stockChanged, boolean isRetry
     ) {
-        log.info("[Batch][Item] 상품 처리 시작 - batchId={}, code={}", batchId, code);
+        /*log.info("[Batch][Item] 상품 처리 시작 - batchId={}, code={}", batchId, code);
         log.info("{}, {}, {}, {}", productDto, priceChanged, stockChanged, isRetry);
 
         String detailsJson = null;
@@ -866,14 +976,14 @@ public class ProductService {
             if (needCoupangSync(mapping, priceChanged, stockChanged)) {
                 if (mapping.getVendorItemId() == null || mapping.getVendorItemId().isBlank()) {
                     // vendorItemId가 없으면, 조회해서 DB에 저장 후 메시지 발행
-                    messageQueueService.publishVendorItemIdSync(
-                            mapping, product, batchId, priceChanged, stockChanged);
+                    *//*messageQueueService.publishVendorItemIdSync(
+                            mapping, product, batchId, priceChanged, stockChanged);*//*
                 } else {
                     // vendorItemId가 있으면, 메시지 발행
-                    /*if (priceChanged) messageQueueService.publishPriceUpdate(
+                    *//*if (priceChanged) messageQueueService.publishPriceUpdate(
                             "coupang", product, mapping, batchId);
                     if (stockChanged) messageQueueService.publishStockUpdate(
-                            "coupang", product, mapping, batchId);*/
+                            "coupang", product, mapping, batchId);*//*
                 }
             }
             // syncToChannelsForOtherChannels(mapping, product, batchId, priceChanged, stockChanged);
@@ -888,7 +998,7 @@ public class ProductService {
                     "CHANNEL UPDATE", "FAILED", "메시지 발행 실패: " + ex.getMessage());
             // 메시지 발행 실패는 예외를 다시 던지지 않음 (DB는 이미 성공)
             // 나중에 재시도하거나, Dead Letter Queue로 처리
-        }
+        }*/
     }
 
     /**
@@ -924,7 +1034,7 @@ public class ProductService {
 
 
     @Transactional(rollbackFor = Exception.class)
-    public String crawlAndUpdateProductsBatch(
+    public String crawlAndUpdateProductsBatch(JobType jobType,
             List<ProductUpdateRequest> requests, String batchId
     ) {
         boolean isRetry = (batchId != null && !batchId.isEmpty());
@@ -940,6 +1050,7 @@ public class ProductService {
         // (2) 배치 총괄 상태 초기화 (productCode = null)
         String batchInitMsg = String.format("총 %d개 상품 업데이트 시작", requests.size());
         pss.upsertProcessStatus(batchId, null, createBatchSummaryDetails(requests),
+                jobType,
                 "BATCH_UPDATE", "PENDING", batchInitMsg);
 
         // (3) 각 상품별 개별 처리
@@ -956,7 +1067,7 @@ public class ProductService {
                 // (4) 진행상황 업데이트 (총괄 row)
                 String batchStatusMsg = String.format("%d/%d개 상품 처리 완료 (실패: %d)",
                         successCount + failCount, requests.size(), failCount);
-                pss.upsertProcessStatus(batchId, null,  null,
+                pss.upsertProcessStatus(batchId, null,  null, jobType,
                         "BATCH_UPDATE", "IN_PROGRESS", batchStatusMsg);
 
             } catch (Exception ex) {
@@ -969,7 +1080,7 @@ public class ProductService {
                 String batchStatusMsg = String.format("%d/%d개 상품 처리 완료 (실패: %d)",
                         successCount + failCount, requests.size(), failCount);
 
-                pss.upsertProcessStatus(batchId, null, null,
+                pss.upsertProcessStatus(batchId, null, null, jobType,
                         "BATCH_UPDATE", "IN_PROGRESS", batchStatusMsg);
             }
         }
@@ -980,7 +1091,7 @@ public class ProductService {
         String finalMessage = String.format("완료: %d/%d (실패: %d)",
                 successCount, requests.size(), failCount);
 
-        pss.upsertProcessStatus(batchId, null, null,
+        pss.upsertProcessStatus(batchId, null, null, jobType,
                 "BATCH_UPDATE", finalStatus, finalMessage);
         log.info("[Batch] 배치 완료 - batchId={}, 성공={}, 실패={}, 실패코드={}",
                 batchId, successCount, failCount, failedCodes);

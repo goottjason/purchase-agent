@@ -1,21 +1,13 @@
 package com.jason.purchase_agent.service.products;
 
-import com.jason.purchase_agent.entity.Product;
-import com.jason.purchase_agent.repository.jpa.ProductRepository;
+import com.jason.purchase_agent.repository.ProductRepository;
 
-import com.jason.purchase_agent.external.iherb.IherbProductCrawler;
-import com.jason.purchase_agent.external.iherb.dto.IherbProductDto;
 import com.jason.purchase_agent.external.coupang.CoupangApiService;
 import com.jason.purchase_agent.external.smartstore.SmartstoreApiService;
 import com.jason.purchase_agent.external.elevenst.ElevenstApiService;
 
-import com.jason.purchase_agent.dto.products.BatchAutoPriceStockUpdateMessage;
-import com.jason.purchase_agent.dto.products.ProductDto;
-
-import static com.jason.purchase_agent.common.calculator.Calculator.calculateSalePrice;
 
 import lombok.RequiredArgsConstructor;
-import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
 
 
@@ -28,7 +20,7 @@ public class ProductQueueConsumer {
     private final ElevenstApiService elevenstApiService;
 
     // 각 상품별 처리 (일단, 로그는 나중에 남기자... 너무 복잡해!)
-    @RabbitListener(queues = "products.batch_auto_price_stock_update_queue")
+    /*@RabbitListener(queues = "products.batch_auto_price_stock_update_queue")
     public void receive(BatchAutoPriceStockUpdateMessage message) throws Exception {
         // 1. 메시지에서 상품 꺼내옴
         ProductDto productDto = message.getProductDto();
@@ -54,11 +46,11 @@ public class ProductQueueConsumer {
         productEntity.setStock(stock);
         productRepo.save(productEntity);
         // 7. 쿠팡 업데이트
-        coupangApiService.updatePriceStock(productDto.getVendorItemId(), salePrice, stock);
+        // coupangApiService.updatePriceStock(productDto.getVendorItemId(), salePrice, stock);
         // 8. 스마트스토어 업데이트
-        smartstoreApiService.updatePriceStock(productDto.getOriginProductNo(), salePrice, stock);
+        // smartstoreApiService.updatePriceStock(productDto.getOriginProductNo(), salePrice, stock);
         // 9. 11번가 업데이트
-        elevenstApiService.updatePriceStock(productDto.getElevenstId(), salePrice, stock);
-    }
+        // elevenstApiService.updatePriceStock(productDto.getElevenstId(), salePrice, stock);
+    }*/
 
 }

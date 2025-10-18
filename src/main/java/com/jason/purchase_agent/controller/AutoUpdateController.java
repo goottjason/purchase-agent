@@ -1,6 +1,7 @@
 package com.jason.purchase_agent.controller;
 
 import com.jason.purchase_agent.dto.products.ProductUpdateRequest;
+import com.jason.purchase_agent.enums.JobType;
 import com.jason.purchase_agent.service.products.ProductService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -10,13 +11,15 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Controller
 @RequiredArgsConstructor
 public class AutoUpdateController {
     private final ProductService productService;
+
+    @GetMapping("/auto-update")
+    public String autoUpdatePage() { return "pages/auto-update"; }
 
     @PostMapping("/auto-update/run")
     @ResponseBody
@@ -36,7 +39,7 @@ public class AutoUpdateController {
                 .collect(Collectors.toList());*/
 
         // 각 상품별 메세지 발행
-        productService.crawlAndUpdateBySupplier(marginRate, couponRate, minMarginPrice, requests);
+        productService.crawlAndUpdatePriceStock(JobType.CRAWL_AND_UPDATE_PRICE_STOCK, marginRate, couponRate, minMarginPrice, requests);
         // productService.crawlAndUpdateBySupplier(marginRate, couponRate, minMarginPrice, filteredRequests);
 
         return ResponseEntity.ok(Map.of(

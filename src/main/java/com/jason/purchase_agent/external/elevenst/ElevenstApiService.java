@@ -1,8 +1,7 @@
 package com.jason.purchase_agent.external.elevenst;
 
-import com.jason.purchase_agent.dto.channel.elevenst.ElevenstEnrollRequest;
+import com.jason.purchase_agent.dto.channel.elevenst.ElevenstProductRequest;
 import com.jason.purchase_agent.dto.product_registration.ProductRegistrationRequest;
-import com.jason.purchase_agent.util.salechannelapi.elevenst.ElevenstApiUtil;
 import com.jason.purchase_agent.util.converter.ElevenstXmlConverter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -70,19 +69,22 @@ public class ElevenstApiService {
         System.out.println("responsePrice = " + responsePrice);
     }
 
-    public String enrollProducts(ProductRegistrationRequest product) throws Exception {
-
-        // 1. 빌더 메서드로 ElevenstProductRequest 생성
-        ElevenstEnrollRequest elevenstEnrollRequest = ElevenstEnrollRequest.fromForm(product);
-        // 2. API 요청 직전에 XML 변환
-        String xmlRequest = xmlConverter.convertToXml(elevenstEnrollRequest);
-        System.out.println("◆◆◆◆◆ xmlRequest = " + xmlRequest);
-        // 3. 전송
-        String response = ElevenstApiUtil.sendRequest(
-                "http://api.11st.co.kr/rest/prodservices/product",
-                "POST",
-                xmlRequest);
-        // 4. 응답 반환 (XML 문자열)
-        return response;
+    public String registerProduct(ProductRegistrationRequest request) throws Exception {
+        try {
+            // 1. 빌더 메서드로 ElevenstProductRequest 생성
+            ElevenstProductRequest elevenstProductRequest = ElevenstProductRequest.fromForm(request);
+            // 2. API 요청 직전에 XML 변환
+            String xmlRequest = xmlConverter.convertToXml(elevenstProductRequest);
+            String url = "http://api.11st.co.kr/rest/prodservices/product";
+            // 3. 전송
+            String responseXml = ElevenstApiUtil.sendRequest(url, "POST", xmlRequest);
+            // 4. 응답 반환 (XML 문자열)
+            return responseXml;
+        } catch (Exception e) {
+            log.error("[ElevenstRegister] 요청 에러 (request={}, e.getMessage()={}",
+                    request, e.getMessage());
+            // 필요시 에러 JSON etc
+            return "{}";
+        }
     }
 }

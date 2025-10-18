@@ -27,7 +27,11 @@ public class ElevenstUpdateConsumer {
     public void handlePriceUpdate(PriceUpdateChannelMessage msg) {
 
         try {
-            String responseXml = elevenstApiService.updatePrice(msg.getChannelId1(), msg.getSalePrice());
+            Integer salePrice = msg.getSalePrice();
+            Double marginRate = msg.getMarginRate();
+            salePrice = (int) (Math.ceil((salePrice * (100 - 18.5 - marginRate) / (100 - 17.5 - marginRate))/100.0) * 100);
+
+            String responseXml = elevenstApiService.updatePrice(msg.getChannelId1(), salePrice);
 
             XmlMapper xmlMapper = new XmlMapper();
             Map<String, Object> xmlResult = xmlMapper.readValue(responseXml, Map.class);
@@ -43,9 +47,9 @@ public class ElevenstUpdateConsumer {
             Map<String, Object> channelResult = new HashMap<>();
             if (findSuccess) {
                 channelResult.put("status", "SUCCESS");
-                channelResult.put("message", String.format("가격: %,d원, ID: %s", msg.getSalePrice(), msg.getChannelId1()));
+                channelResult.put("message", String.format("가격: %,d원, ID: %s", salePrice, msg.getChannelId1()));
                 log.info("[{}][Elevenst][Price] 성공 (elevenstId={}, salePrice={})",
-                        msg.getProductCode(), msg.getChannelId1(), msg.getSalePrice());
+                        msg.getProductCode(), msg.getChannelId1(), salePrice);
             } else {
                 channelResult.put("status", "FAIL");
                 channelResult.put("message", code + " : " + returnedMessage);

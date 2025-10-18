@@ -1,12 +1,10 @@
 package com.jason.purchase_agent;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.jason.purchase_agent.dto.channel.coupang.CoupangApiResponse;
 import com.jason.purchase_agent.dto.channel.coupang.CoupangCategoryMetaInfoDto;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.jason.purchase_agent.util.salechannelapi.coupang.CoupangApiUtil;
+import com.jason.purchase_agent.external.coupang.CoupangApiUtil;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 

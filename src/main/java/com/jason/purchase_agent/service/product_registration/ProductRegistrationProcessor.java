@@ -1,32 +1,16 @@
 package com.jason.purchase_agent.service.product_registration;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.jason.purchase_agent.dto.product_registration.ProductImageUploadResult;
-import com.jason.purchase_agent.dto.product_registration.ProductRegistrationRequest;
-import com.jason.purchase_agent.entity.Product;
-import com.jason.purchase_agent.entity.ProductChannelMapping;
-import com.jason.purchase_agent.external.ChannelResultDto;
 import com.jason.purchase_agent.external.coupang.CoupangApiService;
 import com.jason.purchase_agent.external.elevenst.ElevenstApiService;
 import com.jason.purchase_agent.external.smartstore.SmartstoreApiService;
-import com.jason.purchase_agent.repository.jpa.ProcessStatusRepository;
-import com.jason.purchase_agent.repository.jpa.ProductChannelMappingRepository;
-import com.jason.purchase_agent.repository.jpa.ProductRepository;
-import com.jason.purchase_agent.util.downloader.ImageDownloader;
-import com.jason.purchase_agent.util.uploader.UploadImagesApi;
+import com.jason.purchase_agent.repository.ProcessStatusRepository;
+import com.jason.purchase_agent.repository.ProductChannelMappingRepository;
+import com.jason.purchase_agent.repository.ProductRepository;
+import com.jason.purchase_agent.util.image.UploadImagesApi;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
-
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
-
-import static com.jason.purchase_agent.util.JsonUtils.*;
 
 @Slf4j
 @Service

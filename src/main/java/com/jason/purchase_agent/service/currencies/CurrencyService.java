@@ -2,7 +2,7 @@ package com.jason.purchase_agent.service.currencies;
 
 import com.jason.purchase_agent.dto.currencies.CurrencyDto;
 import com.jason.purchase_agent.entity.Currency;
-import com.jason.purchase_agent.repository.jpa.CurrencyRepository;
+import com.jason.purchase_agent.repository.CurrencyRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

@@ -2,20 +2,21 @@ package com.jason.purchase_agent.service.product_registration;
 
 import com.jason.purchase_agent.dto.categories.CategoryTreeDto;
 import com.jason.purchase_agent.dto.process_status.ProcessStatusDto;
-import com.jason.purchase_agent.dto.product_registration.ProductImageUploadResult;
 import com.jason.purchase_agent.dto.product_registration.ProductRegistrationRequest;
 import com.jason.purchase_agent.dto.products.ProductDto;
+import com.jason.purchase_agent.enums.JobType;
 import com.jason.purchase_agent.external.iherb.IherbCategoryCrawler;
 import com.jason.purchase_agent.external.iherb.IherbProductCrawler;
 import com.google.gson.Gson;
 import com.jason.purchase_agent.external.iherb.dto.IherbProductDto;
 import com.jason.purchase_agent.messaging.MessageQueueService;
-import com.jason.purchase_agent.repository.jpa.CategoryRepository;
-import com.jason.purchase_agent.repository.jpa.ProcessStatusRepository;
-import com.jason.purchase_agent.repository.jpa.ProductRepository;
+import com.jason.purchase_agent.repository.CategoryRepository;
+import com.jason.purchase_agent.repository.ProcessStatusRepository;
+import com.jason.purchase_agent.repository.ProductRepository;
 import com.jason.purchase_agent.service.process_status.ProcessStatusService;
-import com.jason.purchase_agent.util.downloader.ImageDownloader;
-import com.jason.purchase_agent.util.uploader.UploadImagesApi;
+import com.jason.purchase_agent.service.products.ProductService;
+import com.jason.purchase_agent.util.image.ImageDownloader;
+import com.jason.purchase_agent.util.image.UploadImagesApi;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.openqa.selenium.By;
@@ -23,6 +24,7 @@ import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
+import org.openqa.selenium.interactions.Actions;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
 import org.springframework.scheduling.annotation.Async;
@@ -37,8 +39,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import static com.jason.purchase_agent.external.iherb.IherbProductCrawler.crawlProductAsJson;
-import static com.jason.purchase_agent.util.JsonUtils.safeJsonString;
 import static com.jason.purchase_agent.util.converter.StringListConverter.objectMapper;
 import static com.jason.purchase_agent.util.exception.ExceptionUtils.uncheck;
 
@@ -46,6 +46,8 @@ import static com.jason.purchase_agent.util.exception.ExceptionUtils.uncheck;
 @Service
 @RequiredArgsConstructor
 public class ProductRegistrationService {
+
+    private final ProductService productService;
     private final UploadImagesApi uploadImagesApi;
     private final CategoryRepository categoryRepository; // 카테고리 DB 테이블 엑세스
     private final ProductRepository productRepository; // 상품 DB 테이블 엑세스
@@ -250,31 +252,45 @@ public class ProductRegistrationService {
     }
 
     @Async
-    public void registerProducts(
+    public void registerProducts(JobType jobType,
             List<ProductRegistrationRequest> requests
     ) {
         String batchId = UUID.randomUUID().toString();
 
-        // 이미지 로컬에 다운로드
+        // 로컬에 이미지 다운로드
         for (ProductRegistrationRequest request : requests) {
-            // 이미지 로컬에 다운로드
             List<String> localPaths = ImageDownloader.downloadImagesToLocal(
                     request.getProductDto().getCode(), request.getImageLinks());
             request.setImageFiles(localPaths);
         }
+        pss.upsertProcessStatus(batchId, null, null, jobType,
+                "REGISTER_IMAGE_DOWNLOAD", "PENDING",
+                String.format("%d개 상품 이미지 로컬에 다운로드", requests.size()));
 
-        // 이미지 업로드
+        // ESM에 이미지 업로드
         // request 에서 getImageFiles를 순회하여 로컬이미지를 업로드하고, setUploadedImageLinks 하는 메서드
         crawlEsmAndUploadImages(requests);
+        pss.upsertProcessStatus(batchId, null, null, jobType,
+                "REGISTER_IMAGE_UPLOAD", "PENDING",
+                String.format("%d개 상품 이미지 ESM에 업로드", requests.size()));
 
         // 메세지 발행
         for (ProductRegistrationRequest request : requests) {
-            messageQueueService.publishRegisterEachProduct(request, batchId);
-        }
-        String batchInitMsg = String.format("%d개 배치 시작", requests.size());
-        pss.upsertProcessStatus(batchId, null, null,
-                "UPDATE_PRODUCTS", "PENDING", batchInitMsg);
+            ProductDto productDto = request.getProductDto();
 
+            // DB 저장
+            productService.saveProductAndMapping(productDto);
+            log.info("[{}] DB 저장 완료", productDto.getCode());
+            pss.upsertProcessStatus(batchId, productDto.getCode(), null, jobType,
+                    "REGISTER_DB_SAVE", "SUCCESS", "새 상품 DB에 저장 성공");
+
+            // 쿠팡에 메세지 발행
+            messageQueueService.publishRegisterProductToCoupang(batchId, request, requests.size());
+        }
+
+        /*pss.upsertProcessStatus(batchId, null, null,
+                "REGISTER_IMAGE_UPLOAD", "PENDING",
+                String.format("%d개 배치 시작", requests.size()));*/
     }
 
     public void crawlEsmAndUploadImages(List<ProductRegistrationRequest> requests) {
@@ -312,6 +328,14 @@ public class ProductRegistrationService {
             driver.findElement(By.cssSelector(".ui_select.user__current .ui_select_selected")).click();
             wait.until(ExpectedConditions.elementToBeClickable(By.cssSelector("li.changeSeller[data-seller-id='shouldbe2480']"))).click();
             Thread.sleep(2000);
+            // 3.5. imgs 폴더 더블클릭
+            WebElement imgsFolder = wait.until(ExpectedConditions.elementToBeClickable(
+                    By.cssSelector("p.icon_folder.type_folder[data-path='/imgs'][data-seq='11992394']")
+            ));
+            // 더블클릭 액션
+            Actions actions = new Actions(driver);
+            actions.doubleClick(imgsFolder).perform();
+            Thread.sleep(1500); // 폴더 진입 대기 (필요 시)
 
             // 4. 업로드 버튼, 파일 input 찾기
             driver.findElement(By.id("fileUploadButton")).click();
